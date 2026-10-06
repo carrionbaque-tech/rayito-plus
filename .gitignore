@@ -2,6 +2,7 @@
 dist/
 out/
 build/
+app-obfuscated/
 *.exe
 *.msi
 *.log
@@ -18,5 +19,3 @@ logs/
 Thumbs.db
 *.tmp
 .cache/
-latest.yml
-*.blockmap
