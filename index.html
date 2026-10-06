@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Rayito Plus</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============ SPLASH ============ -->
+  <div id="splash">
+    <div class="splash-logo">
+      <img src="https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg" alt="Rayito Plus" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+      <div class="splash-fallback" style="display:none;"><i class="fa-solid fa-bolt"></i></div>
+    </div>
+    <h1 class="splash-title">Rayito <span>Plus</span></h1>
+    <div class="splash-loader"></div>
+  </div>
+
+  <!-- ============ MODAL DE ACTUALIZACIÓN ============ -->
+  <div id="update-modal" class="update-modal hidden">
+    <div class="update-box">
+      <div class="update-icon">
+        <i class="fa-solid fa-cloud-arrow-down"></i>
+      </div>
+      <h2 id="update-title">Actualización disponible</h2>
+      <p id="update-message" class="update-message">Hay una nueva versión disponible</p>
+      
+      <div class="update-version-info" id="update-version-info" style="display:none;">
+        <span class="update-version-badge" id="update-version-badge">v1.0.0</span>
+        <span class="update-current-version" id="update-current-version">Actual: v1.0.0</span>
+      </div>
+
+      <div id="update-progress-container" class="update-progress-container" style="display:none;">
+        <div class="update-progress-bar">
+          <div class="update-progress-fill" id="update-progress-fill" style="width: 0%;"></div>
+        </div>
+        <p class="update-progress-text" id="update-progress-text">0%</p>
+      </div>
+
+      <div class="update-buttons" id="update-buttons">
+        <button class="btn-update-cancel" id="btn-update-cancel">Más tarde</button>
+        <button class="btn-update-primary" id="btn-update-primary">Actualizar ahora</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ AUTH ============ -->
+  <div id="auth-container" class="hidden">
+    <div class="auth-box">
+      <div id="pantalla-login" class="auth-pantalla">
+        <div class="auth-logo">
+          <img src="https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg" alt="Rayito Plus" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <div class="auth-logo-fallback" style="display:none;"><i class="fa-solid fa-bolt"></i></div>
+        </div>
+        <h2>Iniciar Sesión</h2>
+        <p class="auth-sub">Bienvenido de nuevo a Rayito Plus</p>
+        <div class="input-group"><i class="fa-solid fa-envelope"></i><input type="email" id="login-email" placeholder="Correo electrónico"></div>
+        <div class="input-group"><i class="fa-solid fa-lock"></i><input type="password" id="login-password" placeholder="Contraseña"></div>
+        <button class="btn-primary" id="btn-login"><i class="fa-solid fa-right-to-bracket"></i> INICIAR SESIÓN</button>
+        <div class="auth-separator"><span>o</span></div>
+        <button class="btn-google" id="btn-google-login"><i class="fa-brands fa-google"></i> Continuar con Google</button>
+        <p class="auth-link" id="link-forgot">¿Olvidaste tu contraseña?</p>
+        <p class="auth-link">¿No tienes cuenta? <span id="link-register">Regístrate</span></p>
+        <p class="auth-error" id="login-error"></p>
+      </div>
+
+      <div id="pantalla-registro" class="auth-pantalla hidden">
+        <div class="auth-logo">
+          <img src="https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg" alt="Rayito Plus" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <div class="auth-logo-fallback" style="display:none;"><i class="fa-solid fa-bolt"></i></div>
+        </div>
+        <h2>Crear Cuenta</h2>
+        <p class="auth-sub">Únete a Rayito Plus</p>
+        <div class="input-group"><i class="fa-solid fa-user"></i><input type="text" id="reg-username" placeholder="Nombre de usuario"></div>
+        <div class="input-group"><i class="fa-solid fa-envelope"></i><input type="email" id="reg-email" placeholder="Correo electrónico"></div>
+        <div class="input-group"><i class="fa-solid fa-lock"></i><input type="password" id="reg-password" placeholder="Contraseña (mín. 6 caracteres)"></div>
+        <div class="input-group"><i class="fa-solid fa-lock"></i><input type="password" id="reg-confirm" placeholder="Confirmar contraseña"></div>
+        <button class="btn-primary" id="btn-register"><i class="fa-solid fa-user-plus"></i> REGISTRARSE</button>
+        <div class="auth-separator"><span>o</span></div>
+        <button class="btn-google" id="btn-google-register"><i class="fa-brands fa-google"></i> Registrarse con Google</button>
+        <p class="auth-link">¿Ya tienes cuenta? <span id="link-login">Inicia sesión</span></p>
+        <p class="auth-error" id="register-error"></p>
+      </div>
+
+      <div id="pantalla-forgot" class="auth-pantalla hidden">
+        <div class="auth-logo">
+          <img src="https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg" alt="Rayito Plus" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <div class="auth-logo-fallback" style="display:none;"><i class="fa-solid fa-bolt"></i></div>
+        </div>
+        <h2>Recuperar Contraseña</h2>
+        <p class="auth-sub">Te enviaremos un enlace a tu correo</p>
+        <div class="input-group"><i class="fa-solid fa-envelope"></i><input type="email" id="forgot-email" placeholder="Tu correo electrónico"></div>
+        <button class="btn-primary" id="btn-forgot"><i class="fa-solid fa-paper-plane"></i> ENVIAR ENLACE</button>
+        <p class="auth-link" id="link-back-login">← Volver a iniciar sesión</p>
+        <p class="auth-success" id="forgot-success"></p>
+        <p class="auth-error" id="forgot-error"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ APP PRINCIPAL ============ -->
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="top-btn" title="Cuenta" id="top-cuenta"><i class="fa-solid fa-user"></i></button>
+        <button class="top-btn" title="Buscar" id="top-buscar"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <button class="top-btn" title="Tienda" id="top-tienda"><i class="fa-solid fa-store"></i></button>
+        <button class="top-btn" title="Notificaciones" id="top-notif"><i class="fa-solid fa-bell"></i><span class="badge" id="notif-badge">0</span></button>
+      </div>
+      <div class="topbar-right">
+        <img src="https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg" alt="Rayito Plus" class="logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="logo-fallback" style="display:none;"><i class="fa-solid fa-bolt"></i></div>
+        <span class="logo-text">Rayito <span class="plus-badge"><i class="fa-solid fa-plus"></i></span></span>
+        <span class="app-version-badge" id="app-version-badge" title="Versión de la app">v1.0.0</span>
+      </div>
+    </header>
+
+    <!-- Buscador -->
+    <div id="buscador-overlay" class="buscador-overlay hidden">
+      <div class="buscador-bar">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="input-busqueda" placeholder="Buscar películas, series...">
+        <button id="cerrar-buscador"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="resultados-busqueda" class="resultados-busqueda"></div>
+    </div>
+
+    <!-- Panel de Notificaciones -->
+    <div id="notif-overlay" class="notif-overlay hidden">
+      <div class="notif-panel">
+        <div class="notif-panel-header">
+          <h2><i class="fa-solid fa-bell"></i> Notificaciones</h2>
+          <button class="notif-cerrar" id="cerrar-notif"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="notif-list" class="notif-list">
+          <p style="color:#9ca3af;text-align:center;padding:40px;">Cargando notificaciones...</p>
+        </div>
+        <div class="notif-panel-footer">
+          <button class="btn-marcar-leidas" id="btn-marcar-leidas">
+            <i class="fa-solid fa-check-double"></i> Marcar todas como leídas
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Menú de cuenta lateral -->
+    <div id="cuenta-overlay" class="cuenta-overlay hidden">
+      <div class="cuenta-panel">
+        <button class="cuenta-cerrar" id="cerrar-cuenta"><i class="fa-solid fa-xmark"></i></button>
+        <div class="cuenta-header">
+          <img id="cuenta-avatar" src="https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg" alt="Avatar" class="cuenta-avatar">
+          <h2 id="cuenta-nombre">Usuario</h2>
+          <p id="cuenta-email">correo@ejemplo.com</p>
+        </div>
+        <div class="cuenta-opciones">
+          <div class="cuenta-opcion" id="op-mi-cuenta"><i class="fa-solid fa-user-circle"></i><span>Mi Cuenta</span><i class="fa-solid fa-chevron-right"></i></div>
+          <div class="cuenta-opcion" id="op-amigos"><i class="fa-solid fa-users"></i><span>Mis Amigos</span><i class="fa-solid fa-chevron-right"></i></div>
+          <div class="cuenta-opcion" id="op-mi-lista"><i class="fa-solid fa-bookmark"></i><span>Mi Lista</span><i class="fa-solid fa-chevron-right"></i></div>
+          <div class="cuenta-opcion" id="op-favoritos"><i class="fa-solid fa-heart"></i><span>Favoritos</span><i class="fa-solid fa-chevron-right"></i></div>
+          <div class="cuenta-opcion" id="op-nuestras-apps"><i class="fa-solid fa-mobile-screen-button"></i><span>Nuestras Apps</span><i class="fa-solid fa-chevron-right"></i></div>
+          <div class="cuenta-opcion" id="op-configuracion"><i class="fa-solid fa-cog"></i><span>Configuración</span><i class="fa-solid fa-chevron-right"></i></div>
+          <div class="cuenta-opcion" id="op-actualizaciones"><i class="fa-solid fa-cloud-arrow-down"></i><span>Buscar actualizaciones</span><i class="fa-solid fa-chevron-right"></i></div>
+          <div class="cuenta-separador"></div>
+          <div class="cuenta-opcion cuenta-salir" id="op-salir"><i class="fa-solid fa-right-from-bracket"></i><span>Cerrar Sesión</span></div>
+        </div>
+      </div>
+    </div>
+
+    <main class="content" id="content-area">
+      <div id="loader" class="loader hidden">
+        <div class="spinner"></div>
+        <p>Cargando contenido...</p>
+      </div>
+      <div id="dynamic-content"></div>
+    </main>
+
+    <nav class="bottombar">
+      <button class="bottom-btn active" data-tab="peliculas"><i class="fa-solid fa-film"></i><span>Películas</span></button>
+      <button class="bottom-btn" data-tab="series"><i class="fa-solid fa-tv"></i><span>Series</span></button>
+    </nav>
+  </div>
+
+  <!-- ============ REPRODUCTOR ============ -->
+  <div id="player-overlay" class="player-overlay hidden">
+    <video id="video-player" preload="metadata" style="display:none;"></video>
+    <video id="hls-player" preload="metadata" style="display:none;"></video>
+    <webview id="webview-player" 
+             src="about:blank"
+             style="display:none;width:100%;height:100%;background:#000;"
+             allowpopups>
+    </webview>
+
+    <div class="player-controls" id="player-controls">
+      <div class="player-top">
+        <button class="player-btn" id="player-back"><i class="fa-solid fa-arrow-left"></i></button>
+        <div class="player-title" id="player-title">Título</div>
+        <button class="player-btn" id="player-minimize" title="Minimizar a ventana flotante" style="margin-left:auto;margin-right:10px;"><i class="fa-solid fa-window-restore"></i></button>
+        <div id="live-badge" style="display:none;background:#ef4444;color:#fff;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold;">🔴 EN VIVO</div>
+      </div>
+      <div class="player-center" id="player-center">
+        <button class="player-btn-big" id="player-rewind"><i class="fa-solid fa-rotate-left"></i></button>
+        <button class="player-btn-big" id="player-play"><i class="fa-solid fa-play"></i></button>
+        <button class="player-btn-big" id="player-forward"><i class="fa-solid fa-rotate-right"></i></button>
+      </div>
+      <div class="player-bottom" id="player-bottom">
+        <div class="player-progress-container" id="player-progress-container">
+          <span class="player-time" id="player-current">00:00</span>
+          <input type="range" id="player-seek" min="0" max="100" value="0" step="0.1">
+          <span class="player-time" id="player-total">00:00</span>
+        </div>
+        <div class="player-buttons">
+          <button class="player-btn" id="player-volume-btn"><i class="fa-solid fa-volume-high"></i></button>
+          <input type="range" id="player-volume" min="0" max="1" step="0.01" value="1">
+          <select id="player-speed" class="player-speed">
+            <option value="0.5">0.5x</option>
+            <option value="0.75">0.75x</option>
+            <option value="1" selected>1x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+            <option value="2">2x</option>
+          </select>
+          <select id="player-quality" class="player-speed">
+            <option value="-1" selected>Auto</option>
+          </select>
+          <button class="player-btn" id="player-fullscreen"><i class="fa-solid fa-expand"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MINI REPRODUCTOR FLOTANTE ============ -->
+  <div id="mini-player" class="mini-player hidden">
+    <video id="mini-video" preload="metadata"></video>
+    <div class="mini-player-controls">
+      <div class="mini-player-title" id="mini-title">Reproduciendo...</div>
+      <button class="mini-player-btn" id="mini-play"><i class="fa-solid fa-pause"></i></button>
+      <button class="mini-player-btn" id="mini-expand" title="Expandir"><i class="fa-solid fa-expand"></i></button>
+      <button class="mini-player-btn" id="mini-close" title="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
