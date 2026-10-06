@@ -1899,7 +1899,7 @@ document.querySelectorAll('.bottom-btn').forEach(btn => {
 });
 
 // ============================================================
-// 🚀 SISTEMA DE AUTO-ACTUALIZACIÓN
+// 🚀 SISTEMA DE AUTO-ACTUALIZACIÓN (VERSIÓN CORREGIDA)
 // ============================================================
 const updateModal = document.getElementById('update-modal');
 const updateTitle = document.getElementById('update-title');
@@ -2010,18 +2010,25 @@ ipcRenderer.on('update-status', (event, data) => {
 
     case 'downloaded':
       updateTitle.textContent = '✅ ¡Listo para instalar!';
-      updateMessage.textContent = 'La actualización se aplicará al reiniciar la app';
+      updateMessage.textContent = 'La app se cerrará para aplicar la actualización. Se abrirá sola en unos segundos.';
       updateVersionInfo.style.display = 'flex';
       updateVersionBadge.textContent = 'v' + data.version;
       updateProgressFill.style.width = '100%';
       updateProgressText.textContent = '100%';
       updateProgressContainer.style.display = 'block';
       updateButtons.style.display = 'flex';
-      btnUpdateCancel.style.display = 'block';
-      btnUpdateCancel.textContent = 'Reiniciar después';
+      btnUpdateCancel.style.display = 'none';
       btnUpdatePrimary.style.display = 'block';
       btnUpdatePrimary.textContent = 'Reiniciar ahora';
       btnUpdatePrimary.disabled = false;
+
+      // ⚠️ AUTO-INSTALAR: 5 segundos después de descargar
+      // Esto le da tiempo al usuario a leer el mensaje
+      setTimeout(async () => {
+        console.log('⏰ Auto-instalando actualización...');
+        await ipcRenderer.invoke('instalar-actualizacion');
+      }, 5000);
+
       mostrarModalUpdate();
       break;
   }

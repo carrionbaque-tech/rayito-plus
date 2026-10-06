@@ -17,9 +17,9 @@ log.transports.file.level = 'info';
 autoUpdater.logger = log;
 
 // ============ CONFIGURACIÓN DEL AUTO-UPDATER ============
-autoUpdater.autoDownload = false;         // No descargar automáticamente
-autoUpdater.autoInstallOnAppQuit = true;  // Instalar al cerrar la app
-autoUpdater.allowDowngrade = false;       // No permitir versiones viejas
+autoUpdater.autoDownload = false;          // No descargar automáticamente
+autoUpdater.autoInstallOnAppQuit = false;  // ⚠️ CAMBIO: NO instalar al cerrar
+autoUpdater.allowDowngrade = false;        // No permitir versiones viejas
 autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache' };
 autoUpdater.forceDevUpdateConfig = false;
 
@@ -131,10 +131,49 @@ ipcMain.handle('descargar-actualizacion', async () => {
   }
 });
 
+// ============ INSTALAR ACTUALIZACIÓN (VERSIÓN CORREGIDA) ============
 ipcMain.handle('instalar-actualizacion', async () => {
   try {
-    console.log('🚀 Instalando actualización y reiniciando...');
-    autoUpdater.quitAndInstall(false, true);
+    console.log('🚀 Preparando instalación de actualización...');
+
+    // 1. Cerrar conexiones de Firebase limpiamente
+    try {
+      const { getApps } = require('firebase/app');
+      const apps = getApps();
+      for (const app of apps) {
+        try {
+          await app.delete();
+          console.log('🔥 Firebase app cerrada:', app.name);
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.log('⚠️ No se pudo cerrar Firebase:', e.message);
+    }
+
+    // 2. Cerrar el servidor OAuth si está activo
+    if (serverOAuth) {
+      try { serverOAuth.close(); } catch (e) {}
+      serverOAuth = null;
+      console.log('🔒 Servidor OAuth cerrado');
+    }
+
+    // 3. Cerrar todas las ventanas de la app
+    BrowserWindow.getAllWindows().forEach(win => {
+      try {
+        win.removeAllListeners('close');
+        win.destroy();
+      } catch (e) {}
+    });
+    console.log('🪟 Ventanas cerradas');
+
+    // 4. Esperar 2 segundos para que Windows libere los locks
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    console.log('🚀 Instalando actualización...');
+    // ⚠️ CLAVE: false = no silencioso, false = no forzar relanzamiento
+    // Windows lanzará el nuevo .exe automáticamente por runAfterFinish: true
+    autoUpdater.quitAndInstall(false, false);
+
     return { success: true };
   } catch (err) {
     console.error('❌ Error instalando:', err);
@@ -173,23 +212,18 @@ ipcMain.handle('mostrar-notificacion', async (event, { titulo, mensaje, icono })
 // ============ BLOQUEAR DEVTOOLS Y ATAJOS PELIGROSOS ============
 function bloquearAtajosPeligrosos() {
   try {
-    // F12
     globalShortcut.register('F12', () => {
       console.log('🚫 F12 bloqueado');
     });
-    // Ctrl + Shift + I (DevTools)
     globalShortcut.register('CommandOrControl+Shift+I', () => {
       console.log('🚫 Ctrl+Shift+I bloqueado');
     });
-    // Ctrl + Shift + J (Consola)
     globalShortcut.register('CommandOrControl+Shift+J', () => {
       console.log('🚫 Ctrl+Shift+J bloqueado');
     });
-    // Ctrl + Shift + C (Inspector de elementos)
     globalShortcut.register('CommandOrControl+Shift+C', () => {
       console.log('🚫 Ctrl+Shift+C bloqueado');
     });
-    // Ctrl + U (Ver código fuente)
     globalShortcut.register('CommandOrControl+U', () => {
       console.log('🚫 Ctrl+U bloqueado');
     });
@@ -214,23 +248,20 @@ function crearVentana() {
       contextIsolation: false,
       webSecurity: false,
       webviewTag: true,
-      devTools: false  // ✅ DevTools deshabilitadas
+      devTools: false
     }
   });
 
-  // ✅ Eliminar el menú por completo (sin acceso a "Toggle DevTools" ni "Reload")
   mainWindow.setMenu(null);
   mainWindow.setMenuBarVisibility(false);
 
   mainWindow.loadFile('index.html');
 
-  // ✅ Bloquear apertura de DevTools programáticamente
   mainWindow.webContents.on('devtools-opened', () => {
     console.log('🚫 DevTools abiertas, cerrándolas...');
     mainWindow.webContents.closeDevTools();
   });
 
-  // ✅ Bloquear teclas: F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const key = (input.key || '').toLowerCase();
     const ctrl = input.control || input.meta;
@@ -247,12 +278,10 @@ function crearVentana() {
     }
   });
 
-  // ✅ Bloquear clic derecho (menú contextual)
   mainWindow.webContents.on('context-menu', (e) => {
     e.preventDefault();
   });
 
-  // ✅ Bloquear navegación externa en la misma ventana
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith('file://')) {
       event.preventDefault();
@@ -260,7 +289,6 @@ function crearVentana() {
     }
   });
 
-  // ✅ Bloquear window.open
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     console.log('🚫 window.open bloqueado:', url);
     return { action: 'deny' };
@@ -420,12 +448,10 @@ app.whenReady().then(() => {
     app.setAppUserModelId('com.rayitoplus.rayitoplus');
   }
 
-  // 🛡️ Activar SOLO las protecciones que NO bloquean contenido
   bloquearAtajosPeligrosos();
 
   crearVentana();
 
-  // ✅ Verificar actualizaciones 3 segundos después de abrir
   setTimeout(() => {
     console.log('🔍 Verificando actualizaciones al inicio...');
     iniciarTimeoutUpdater();
@@ -436,7 +462,6 @@ app.whenReady().then(() => {
   }, 3000);
 });
 
-// 🛡️ Desregistrar atajos globales al cerrar
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
 });
