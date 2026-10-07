@@ -1,32 +1,49 @@
-
 const { app, BrowserWindow, ipcMain, shell, Notification, globalShortcut, session } = require('electron');
 const http = require('http');
 const path = require('path');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const cloudflare = require('./cloudflare-manager.js');
 
+// ═══════════════════════════════════════════════════════════
+// OPTIMIZACIÓN: Flags de rendimiento
+// ═══════════════════════════════════════════════════════════
+app.commandLine.appendSwitch('disable-gpu-compositing');
+app.commandLine.appendSwitch('enable-features', 'CanvasOopRasterization');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=512');
+
+app.commandLine.appendSwitch('disk-cache-size', '52428800');
+app.commandLine.appendSwitch('media-cache-size', '52428800');
+
 let mainWindow;
 let serverOAuth = null;
+let installInProgress = false;
 
 const LOGO_URL = 'https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg';
 const isDev = !app.isPackaged;
 
+log.transports.file.level = isDev ? 'debug' : 'info';
+log.transports.console.level = isDev ? 'debug' : 'info';
 
-log.transports.file.level = isDev ? 'debug' : 'warn';
-log.transports.console.level = isDev ? 'debug' : false;
-
-
+// ═══════════════════════════════════════════════════════════
+// CONFIGURACIÓN DEL UPDATER
+// ═══════════════════════════════════════════════════════════
 autoUpdater.logger = log;
 autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = false;
+autoUpdater.autoInstallOnAppQuit = true;   // ✅ Instalar al cerrar si hay pendiente
 autoUpdater.allowDowngrade = false;
+autoUpdater.allowPrerelease = false;
 autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache' };
 autoUpdater.forceDevUpdateConfig = false;
 
 let updaterTimeout = null;
+
 function iniciarTimeoutUpdater() {
   clearTimeout(updaterTimeout);
   updaterTimeout = setTimeout(() => {
@@ -36,17 +53,20 @@ function iniciarTimeoutUpdater() {
     });
   }, 15000);
 }
+
 function cancelarTimeoutUpdater() {
   clearTimeout(updaterTimeout);
   updaterTimeout = null;
 }
 
 autoUpdater.on('checking-for-update', () => {
+  log.info('🔍 [updater] Buscando actualizaciones...');
   iniciarTimeoutUpdater();
   sendToRenderer('update-status', { status: 'checking', message: 'Buscando actualizaciones...' });
 });
 
 autoUpdater.on('update-available', (info) => {
+  log.info('🎉 [updater] Actualización disponible:', info.version);
   cancelarTimeoutUpdater();
   sendToRenderer('update-status', {
     status: 'available',
@@ -58,6 +78,7 @@ autoUpdater.on('update-available', (info) => {
 });
 
 autoUpdater.on('update-not-available', (info) => {
+  log.info('✅ [updater] Ya estás en la última versión');
   cancelarTimeoutUpdater();
   sendToRenderer('update-status', {
     status: 'not-available',
@@ -67,6 +88,7 @@ autoUpdater.on('update-not-available', (info) => {
 });
 
 autoUpdater.on('error', (err) => {
+  log.error('❌ [updater] Error:', err.message);
   cancelarTimeoutUpdater();
   sendToRenderer('update-status', {
     status: 'error',
@@ -75,17 +97,21 @@ autoUpdater.on('error', (err) => {
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
+  const msg = `Descargando... ${progressObj.percent.toFixed(1)}%`;
+  log.info(`⬇️ [updater] ${msg}`);
   sendToRenderer('update-status', {
     status: 'downloading',
     percent: progressObj.percent,
     transferred: progressObj.transferred,
     total: progressObj.total,
     bytesPerSecond: progressObj.bytesPerSecond,
-    message: `Descargando... ${progressObj.percent.toFixed(1)}%`,
+    message: msg,
   });
 });
 
 autoUpdater.on('update-downloaded', (info) => {
+  log.info('✅ [updater] Actualización descargada:', info.version);
+  log.info('📁 [updater] Instalador guardado en caché del updater');
   sendToRenderer('update-status', {
     status: 'downloaded',
     version: info.version,
@@ -95,9 +121,17 @@ autoUpdater.on('update-downloaded', (info) => {
 
 function sendToRenderer(channel, data) {
   if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
-    mainWindow.webContents.send(channel, data);
+    try {
+      mainWindow.webContents.send(channel, data);
+    } catch (e) {
+      log.error('Error enviando a renderer:', e);
+    }
   }
 }
+
+// ═══════════════════════════════════════════════════════════
+// HANDLERS DE IPC
+// ═══════════════════════════════════════════════════════════
 
 ipcMain.handle('verificar-actualizaciones', async () => {
   try {
@@ -106,37 +140,152 @@ ipcMain.handle('verificar-actualizaciones', async () => {
     return { success: true, updateInfo: result?.updateInfo || null };
   } catch (err) {
     cancelarTimeoutUpdater();
+    log.error('Error verificando:', err);
     return { success: false, error: err.message };
   }
 });
 
 ipcMain.handle('descargar-actualizacion', async () => {
   try {
+    log.info('⬇️ [updater] Iniciando descarga...');
     await autoUpdater.downloadUpdate();
     return { success: true };
   } catch (err) {
+    log.error('Error descargando:', err);
     return { success: false, error: err.message };
   }
 });
 
+// ═══════════════════════════════════════════════════════════
+// 🚀 INSTALACIÓN DE ACTUALIZACIÓN — VERSIÓN CORREGIDA
+// ═══════════════════════════════════════════════════════════
 ipcMain.handle('instalar-actualizacion', async () => {
+  if (installInProgress) {
+    log.warn('⚠️ [install] Ya hay una instalación en progreso');
+    return { success: true, message: 'Ya en progreso' };
+  }
+
+  installInProgress = true;
+  log.info('═══════════════════════════════════════════');
+  log.info('🚀 [install] INICIANDO INSTALACIÓN');
+  log.info('═══════════════════════════════════════════');
+
   try {
+    // 1. Detener servidor OAuth
+    if (serverOAuth) {
+      try {
+        serverOAuth.close();
+        log.info('✅ [install] Servidor OAuth cerrado');
+      } catch (e) {
+        log.warn('Error cerrando OAuth:', e);
+      }
+      serverOAuth = null;
+    }
+
+    // 2. Limpiar Firebase
     try {
       const { getApps } = require('firebase/app');
       const apps = getApps();
-      for (const a of apps) { try { await a.delete(); } catch (e) {} }
-    } catch (e) {}
+      for (const a of apps) {
+        try { await a.delete(); } catch (e) {}
+      }
+      log.info('✅ [install] Firebase limpiado');
+    } catch (e) {
+      log.warn('Error limpiando Firebase:', e);
+    }
 
-    if (serverOAuth) { try { serverOAuth.close(); } catch (e) {} serverOAuth = null; }
+    // 3. Verificar si el instalador está descargado
+    const updateCacheDir = path.join(
+      process.env.LOCALAPPDATA,
+      'rayito-exe-updater',
+      'pending'
+    );
+    log.info('📁 [install] Buscando instalador en:', updateCacheDir);
 
-    BrowserWindow.getAllWindows().forEach((win) => {
-      try { win.removeAllListeners('close'); win.destroy(); } catch (e) {}
+    let installerPath = null;
+    if (fs.existsSync(updateCacheDir)) {
+      const files = fs.readdirSync(updateCacheDir);
+      const installer = files.find(f =>
+        f.endsWith('.exe') && f.includes('RayitoPlus-Setup')
+      );
+      if (installer) {
+        installerPath = path.join(updateCacheDir, installer);
+        const stats = fs.statSync(installerPath);
+        log.info('✅ [install] Instalador encontrado:', installerPath);
+        log.info('📦 [install] Tamaño:', (stats.size / 1024 / 1024).toFixed(2), 'MB');
+      }
+    }
+
+    if (!installerPath) {
+      log.warn('⚠️ [install] Instalador no encontrado, usando quitAndInstall');
+    }
+
+    // 4. Cerrar ventanas SIN destruirlas (quitAndInstall se encarga)
+    //    Enviamos evento al renderer para que cierre limpiamente
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        mainWindow.webContents.send('preparando-instalacion');
+        log.info('✅ [install] Notificado al renderer');
+      } catch (e) {}
+    }
+
+    // 5. Esperar un momento para que se limpie todo
+    await new Promise(r => setTimeout(r, 800));
+
+    // ═══════════════════════════════════════════════════════
+    // MÉTODO PRINCIPAL: autoUpdater.quitAndInstall
+    // Parámetros: (isSilent, isForceRunAfter)
+    // - isSilent = false  → Muestra el instalador
+    // - isForceRunAfter = true → Reabre la app después de instalar
+    // ═══════════════════════════════════════════════════════
+    log.info('🚀 [install] Llamando autoUpdater.quitAndInstall(false, true)...');
+
+    // setImmediate asegura que el IPC responda ANTES de cerrar
+    setImmediate(() => {
+      try {
+        autoUpdater.quitAndInstall(false, true);
+        log.info('✅ [install] quitAndInstall ejecutado');
+      } catch (err) {
+        log.error('❌ [install] Error en quitAndInstall:', err);
+      }
     });
 
-    await new Promise((r) => setTimeout(r, 2000));
-    autoUpdater.quitAndInstall(false, false);
+    // ═══════════════════════════════════════════════════════
+    // FALLBACK: Si en 4 segundos la app sigue viva, forzar ejecución
+    // ═══════════════════════════════════════════════════════
+    setTimeout(() => {
+      if (installInProgress) {
+        log.warn('⚠️ [install] Fallback activado — forzando instalación manual');
+
+        if (installerPath && fs.existsSync(installerPath)) {
+          try {
+            log.info('🚀 [install] Ejecutando instalador manualmente:', installerPath);
+
+            const child = spawn(installerPath, ['/S', '--force-run'], {
+              detached: true,
+              stdio: 'ignore',
+              windowsHide: false,
+            });
+            child.unref();
+
+            log.info('✅ [install] Instalador lanzado, cerrando app en 1s...');
+            setTimeout(() => app.exit(0), 1000);
+          } catch (err) {
+            log.error('❌ [install] Error ejecutando instalador:', err);
+            app.exit(0);
+          }
+        } else {
+          log.error('❌ [install] No hay instalador para ejecutar, cerrando app');
+          app.exit(0);
+        }
+      }
+    }, 4000);
+
     return { success: true };
+
   } catch (err) {
+    log.error('❌ [install] Error general:', err);
+    installInProgress = false;
     return { success: false, error: err.message };
   }
 });
@@ -161,6 +310,7 @@ ipcMain.handle('mostrar-notificacion', async (_event, { titulo, mensaje, icono }
     notif.show();
     return true;
   } catch (err) {
+    log.error('Error mostrando notificación:', err);
     return false;
   }
 });
@@ -177,31 +327,38 @@ function bloquearAtajosPeligrosos() {
   }
 }
 
-
 function crearVentana() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1000,
-    minHeight: 700,
+    width: 1280,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
     backgroundColor: '#0a0a0a',
+    show: false,
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'logo.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: true,          
-      contextIsolation: false,          
-      webSecurity: true,               
+      nodeIntegration: true,
+      contextIsolation: false,
+      webSecurity: true,
       webviewTag: true,
-      devTools: isDev,                 
-      sandbox: false,                
+      devTools: isDev,
+      sandbox: false,
       spellcheck: false,
       enableRemoteModule: false,
+      backgroundThrottling: true,
+      v8CacheOptions: 'code',
     },
   });
 
   mainWindow.setMenu(null);
   mainWindow.setMenuBarVisibility(false);
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
+
   mainWindow.loadFile('index.html');
 
   mainWindow.webContents.on('did-finish-load', () => {
@@ -212,7 +369,6 @@ function crearVentana() {
     log.error('❌ Error al cargar index.html:', code, desc);
   });
 
-  
   if (!isDev) {
     mainWindow.webContents.on('devtools-opened', () => {
       mainWindow.webContents.closeDevTools();
@@ -284,7 +440,6 @@ ipcMain.handle('abrir-navegador', async (_event, url) => {
   if (typeof url !== 'string' || url.length > 2048) return false;
   return await abrirEnChrome(url);
 });
-
 
 ipcMain.handle('cargar-peliculas', async () => {
   try {
@@ -364,6 +519,9 @@ ipcMain.handle('detener-servidor-oauth', async () => {
   return true;
 });
 
+// ═══════════════════════════════════════════════════════════
+// INICIO DE LA APP
+// ═══════════════════════════════════════════════════════════
 app.whenReady().then(() => {
   if (process.platform === 'win32') {
     app.setAppUserModelId('com.rayitoplus.rayitoplus');
@@ -379,10 +537,13 @@ app.whenReady().then(() => {
       cancelarTimeoutUpdater();
       log.warn('⚠️ No se pudo verificar:', err.message);
     });
-  }, 3000);
+  }, 10000);
 });
 
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+});
+
 app.on('window-all-closed', () => {
   if (serverOAuth) serverOAuth.close();
   if (process.platform !== 'darwin') app.quit();

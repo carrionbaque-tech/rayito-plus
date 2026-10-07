@@ -2276,18 +2276,66 @@ ipcRenderer.on('update-status', (event, data) => {
 
 btnUpdateCancel.addEventListener('click', () => { ocultarModalUpdate(); });
 
+// ═══════════════════════════════════════════════════════════
+// BOTÓN "REINICIAR AHORA" — VERSIÓN CORREGIDA
+// ═══════════════════════════════════════════════════════════
 btnUpdatePrimary.addEventListener('click', async () => {
   const status = updateState.status;
+  console.log('🔧 [update] Botón clickeado. Status:', status);
+
   if (status === 'available') {
     btnUpdatePrimary.disabled = true;
     btnUpdatePrimary.textContent = 'Iniciando...';
-    await ipcRenderer.invoke('descargar-actualizacion');
+    try {
+      const result = await ipcRenderer.invoke('descargar-actualizacion');
+      if (!result.success) {
+        alert('Error al descargar: ' + result.error);
+        btnUpdatePrimary.disabled = false;
+        btnUpdatePrimary.textContent = 'Descargar';
+      }
+    } catch (e) {
+      console.error('❌ Error:', e);
+      btnUpdatePrimary.disabled = false;
+    }
   } else if (status === 'downloaded') {
+    console.log('🚀 [update] Iniciando instalación...');
     btnUpdatePrimary.disabled = true;
-    btnUpdatePrimary.textContent = 'Reiniciando...';
-    await ipcRenderer.invoke('instalar-actualizacion');
+    btnUpdatePrimary.textContent = 'Instalando...';
+    btnUpdateCancel.style.display = 'none';
+
+    // ✅ Mostrar mensaje de que se va a cerrar
+    updateTitle.textContent = '🚀 Instalando actualización...';
+    updateMessage.textContent = 'La app se cerrará automáticamente en unos segundos...';
+
+    try {
+      const result = await ipcRenderer.invoke('instalar-actualizacion');
+      console.log('✅ [update] Resultado:', result);
+
+      if (!result.success) {
+        alert('Error al instalar: ' + result.error);
+        btnUpdatePrimary.disabled = false;
+        btnUpdatePrimary.textContent = 'Reiniciar ahora';
+      }
+    } catch (e) {
+      console.error('❌ [update] Error:', e);
+      alert('Error: ' + e.message);
+      btnUpdatePrimary.disabled = false;
+      btnUpdatePrimary.textContent = 'Reiniciar ahora';
+    }
   } else {
     ocultarModalUpdate();
+  }
+});
+
+// ✅ Listener para cuando la app se esté preparando para cerrar
+ipcRenderer.on('preparando-instalacion', () => {
+  console.log('🔔 [update] Preparando instalación...');
+  updateTitle.textContent = '🚀 Instalando...';
+  updateMessage.textContent = 'La app se cerrará automáticamente. Se reabrirá sola.';
+  if (updateProgressContainer) updateProgressContainer.style.display = 'none';
+  if (btnUpdatePrimary) {
+    btnUpdatePrimary.disabled = true;
+    btnUpdatePrimary.textContent = 'Cerrando...';
   }
 });
 
