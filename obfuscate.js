@@ -1,118 +1,143 @@
 // obfuscate.js
-// Ofusca los archivos JS de Rayito Plus
-// Uso: npm run obfuscate
-
-const JavaScriptObfuscator = require('javascript-obfuscator');
 const fs = require('fs');
 const path = require('path');
+const JavaScriptObfuscator = require('javascript-obfuscator');
 
-// ============ CONFIGURACIÓN ============
 const ARCHIVOS_A_OFUSCAR = [
-  'main.js',
+  'cloudflare-manager.js',  
   'renderer.js',
-  'cloudflare-manager.js'
+  'donaciones.js',
+   'chat.js', 
+   
 ];
 
 const ARCHIVOS_A_COPIAR = [
-  'firebase-config.js'
+  'main.js',                
+  'firebase-config.js',     
 ];
 
 const OUTPUT_DIR = path.join(__dirname, 'app-obfuscated');
 
-// Opciones de ofuscación (ajustadas para Electron)
-const OBFUSCATOR_OPTIONS = {
+
+const OBFUSCATION_OPTIONS_CLOUDFLARE = {
+  compact: true,
+  controlFlowFlattening: true,
+  controlFlowFlatteningThreshold: 1,       
+  deadCodeInjection: true,
+  deadCodeInjectionThreshold: 0.6,      
+  debugProtection: true,                    
+  debugProtectionInterval: 2000,            
+  disableConsoleOutput: true,            
+  identifierNamesGenerator: 'mangled-shuffled',
+  log: false,
+  numbersToExpressions: true,
+  renameGlobals: true,                     
+  selfDefending: true,
+  simplify: true,
+  splitStrings: true,
+  splitStringsChunkLength: 5,       
+  stringArray: true,
+  stringArrayCallsTransform: true,
+  stringArrayCallsTransformThreshold: 1,
+  stringArrayEncoding: ['rc4'],             
+  stringArrayIndexShift: true,
+  stringArrayRotate: true,
+  stringArrayShuffle: true,
+  stringArrayWrappersCount: 3,               
+  stringArrayWrappersChainedCalls: true,
+  stringArrayWrappersParametersMaxCount: 5,
+  stringArrayWrappersType: 'function',
+  stringArrayThreshold: 1,                  
+  transformObjectKeys: true,
+  unicodeEscapeSequence: false,
+  
+  target: 'node',
+  sourceMap: false,
+  seed: 0,
+};
+
+
+const OBFUSCATION_OPTIONS_DEFAULT = {
   compact: true,
   controlFlowFlattening: true,
   controlFlowFlatteningThreshold: 0.75,
   deadCodeInjection: true,
   deadCodeInjectionThreshold: 0.4,
-  debugProtection: false,
-  disableConsoleOutput: false,
+  disableConsoleOutput: true,
   identifierNamesGenerator: 'hexadecimal',
-  log: false,
-  numbersToExpressions: true,
-  renameGlobals: false,          // ⚠️ OBLIGATORIO false para Electron
-  selfDefending: false,          // ⚠️ OBLIGATORIO false para Electron
+  selfDefending: true,
   simplify: true,
   splitStrings: true,
   splitStringsChunkLength: 10,
   stringArray: true,
   stringArrayCallsTransform: true,
-  stringArrayCallsTransformThreshold: 0.5,
   stringArrayEncoding: ['base64'],
   stringArrayIndexShift: true,
   stringArrayRotate: true,
   stringArrayShuffle: true,
-  stringArrayWrappersCount: 1,
-  stringArrayWrappersChainedCalls: true,
-  stringArrayWrappersParametersMaxCount: 2,
-  stringArrayWrappersType: 'variable',
   stringArrayThreshold: 0.75,
   transformObjectKeys: true,
-  unicodeEscapeSequence: false
+  target: 'node',
 };
 
-// ============ LÓGICA ============
 function limpiarDirectorio(dir) {
-  if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
 }
 
-function main() {
-  console.log('\n🔒 Iniciando ofuscación de Rayito Plus...\n');
+function ofuscarArchivo(archivo, opciones) {
+  const inputPath = path.join(__dirname, archivo);
+  const outputPath = path.join(OUTPUT_DIR, archivo);
 
-  // Limpiar carpeta de salida
-  console.log('🧹 Limpiando carpeta app-obfuscated...');
+  if (!fs.existsSync(inputPath)) {
+    console.error(`❌ No existe: ${archivo}`);
+    return false;
+  }
+
+  try {
+    const code = fs.readFileSync(inputPath, 'utf8');
+    const obfuscated = JavaScriptObfuscator.obfuscate(code, opciones).getObfuscatedCode();
+    fs.writeFileSync(outputPath, obfuscated);
+    const s1 = (fs.statSync(inputPath).size / 1024).toFixed(1);
+    const s2 = (fs.statSync(outputPath).size / 1024).toFixed(1);
+    console.log(`🔒 ${archivo}: ${s1}KB → ${s2}KB`);
+    return true;
+  } catch (err) {
+    console.error(`❌ Error ofuscando ${archivo}:`, err.message);
+    return false;
+  }
+}
+
+function copiarArchivo(archivo) {
+  const inputPath = path.join(__dirname, archivo);
+  const outputPath = path.join(OUTPUT_DIR, archivo);
+  if (!fs.existsSync(inputPath)) {
+    console.error(`❌ No existe: ${archivo}`);
+    return false;
+  }
+  fs.copyFileSync(inputPath, outputPath);
+  console.log(`📋 ${archivo} copiado`);
+  return true;
+}
+
+function main() {
+  console.log('\n🛡️  RAYITO PLUS - Build Seguro\n');
   limpiarDirectorio(OUTPUT_DIR);
 
-  let ok = 0;
-  let errores = 0;
+  let ok = 0, errores = 0;
 
-  // Ofuscar archivos
-  ARCHIVOS_A_OFUSCAR.forEach(archivo => {
-    const inputPath = path.join(__dirname, archivo);
-    const outputPath = path.join(OUTPUT_DIR, archivo);
-
-    if (!fs.existsSync(inputPath)) {
-      console.error(`❌ No existe: ${archivo}`);
-      errores++;
-      return;
-    }
-
-    try {
-      const code = fs.readFileSync(inputPath, 'utf8');
-      const resultado = JavaScriptObfuscator.obfuscate(code, OBFUSCATOR_OPTIONS);
-      fs.writeFileSync(outputPath, resultado.getObfuscatedCode(), 'utf8');
-
-      const sizeOrig = fs.statSync(inputPath).size;
-      const sizeOfus = fs.statSync(outputPath).size;
-      const ratio = ((sizeOfus / sizeOrig) * 100).toFixed(0);
-
-      console.log(`🔒 ${archivo} → ${(sizeOrig/1024).toFixed(1)}KB → ${(sizeOfus/1024).toFixed(1)}KB (${ratio}%)`);
-      ok++;
-    } catch (err) {
-      console.error(`❌ Error ofuscando ${archivo}:`, err.message);
-      errores++;
-    }
+  ARCHIVOS_A_OFUSCAR.forEach(a => {
+    const opts = a === 'cloudflare-manager.js'
+      ? OBFUSCATION_OPTIONS_CLOUDFLARE
+      : OBFUSCATION_OPTIONS_DEFAULT;
+    if (ofuscarArchivo(a, opts)) ok++; else errores++;
   });
 
-  // Copiar archivos excluidos
-  ARCHIVOS_A_COPIAR.forEach(archivo => {
-    const inputPath = path.join(__dirname, archivo);
-    const outputPath = path.join(OUTPUT_DIR, archivo);
-
-    if (fs.existsSync(inputPath)) {
-      fs.copyFileSync(inputPath, outputPath);
-      console.log(`📋 ${archivo} (copiado sin ofuscar)`);
-      ok++;
-    }
+  ARCHIVOS_A_COPIAR.forEach(a => {
+    if (copiarArchivo(a)) ok++; else errores++;
   });
 
-  console.log(`\n✅ Ofuscación completa: ${ok} archivos procesados, ${errores} errores`);
-  console.log(`📁 Resultado en: app-obfuscated/\n`);
-
+  console.log(`\n✅ ${ok} procesados, ${errores} errores\n`);
   if (errores > 0) process.exit(1);
 }
 

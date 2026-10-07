@@ -1,22 +1,33 @@
 const axios = require('axios');
 
-const BASE_URL = 'https://rayitofilms.online';
-const USER_AGENT = 'RayitoPlusApp/3.0.7 Electron';
+const PROTO = 'https://';
+const HOST = 'rayitofilms' + '.online';
+const BASE_URL = PROTO + HOST;
+const UA = 'RayitoPlusApp/' + '3.0.7' + ' Electron';
 
-// ============ PELÍCULAS ============
+const R_MOVIES_GEN = '/pc/generate/' + 'movies.json';
+const R_SERIES_GEN = '/pc/generate/' + 'series.json';
+const R_MOVIES = '/pc/' + 'movies.json';
+const R_SERIES = '/pc/' + 'series.json';
+
+const log = () => {};
+
 async function cargarPeliculas() {
   try {
-    console.log('🔐 Solicitando token para películas...');
-    const tokenRes = await axios.get(`${BASE_URL}/generate/movies.json`, {
-      headers: { 'User-Agent': USER_AGENT },
+    log('🔐 Solicitando token...');
+    const tokenRes = await axios.get(BASE_URL + R_MOVIES_GEN, {
+      headers: { 'User-Agent': UA },
       timeout: 15000
     });
     const verifyToken = tokenRes.data.verify;
 
-    console.log('📥 Descargando películas...');
-    const res = await axios.get(`${BASE_URL}/movies.json`, {
+    log('📥 Descargando películas...');
+    const res = await axios.get(BASE_URL + R_MOVIES, {
       params: { verify: verifyToken },
-      headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' },
+      headers: {
+        'User-Agent': UA,
+        'Accept': 'application/json'
+      },
       timeout: 15000
     });
 
@@ -28,28 +39,30 @@ async function cargarPeliculas() {
         movies.push(moviesMap[key]);
       }
     }
-    console.log(`✅ ${movies.length} películas cargadas`);
+    log(`✅ ${movies.length} películas cargadas`);
     return movies;
   } catch (error) {
-    console.error('❌ Error cargando películas:', error.message);
+    log('❌ Error:', error.message);
     throw new Error('No se pudieron cargar las películas');
   }
 }
 
-// ============ SERIES ============
 async function cargarSeries() {
   try {
-    console.log('🔐 Solicitando token para series...');
-    const tokenRes = await axios.get(`${BASE_URL}/generate/series.json`, {
-      headers: { 'User-Agent': USER_AGENT },
+    log('🔐 Solicitando token...');
+    const tokenRes = await axios.get(BASE_URL + R_SERIES_GEN, {
+      headers: { 'User-Agent': UA },
       timeout: 15000
     });
     const verifyToken = tokenRes.data.verify;
 
-    console.log('📥 Descargando series...');
-    const res = await axios.get(`${BASE_URL}/series.json`, {
+    log('📥 Descargando series...');
+    const res = await axios.get(BASE_URL + R_SERIES, {
       params: { verify: verifyToken },
-      headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' },
+      headers: {
+        'User-Agent': UA,
+        'Accept': 'application/json'
+      },
       timeout: 15000
     });
 
@@ -61,10 +74,10 @@ async function cargarSeries() {
         series.push(seriesMap[key]);
       }
     }
-    console.log(`✅ ${series.length} series cargadas`);
+    log(`✅ ${series.length} series cargadas`);
     return series;
   } catch (error) {
-    console.error('❌ Error cargando series:', error.message);
+    log('❌ Error:', error.message);
     throw new Error('No se pudieron cargar las series');
   }
 }

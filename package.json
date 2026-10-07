@@ -1,6 +1,6 @@
 {
   "name": "rayito-exe",
-  "version": "1.0.5",
+  "version": "1.0.8",
   "main": "app-obfuscated/main.js",
   "scripts": {
     "start": "npm run obfuscate && electron .",
@@ -15,12 +15,11 @@
   "devDependencies": {
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
-    "javascript-obfuscator": "^4.2.2"
+    "javascript-obfuscator": "^4.1.1"
   },
   "dependencies": {
     "axios": "^1.20.0",
     "electron-log": "^5.2.0",
-    "electron-store": "^11.0.2",
     "electron-updater": "^6.3.9",
     "firebase": "^12.19.0",
     "hls.js": "^1.7.3"
@@ -30,12 +29,13 @@
     "productName": "Rayito Plus",
     "artifactName": "RayitoPlus-Setup-${version}.${ext}",
     "asar": true,
+    "asarUnpack": [],
     "electronFuses": {
       "runAsNode": false,
       "enableCookieEncryption": true,
       "enableNodeOptionsEnvironmentVariable": false,
       "enableNodeCliInspectArguments": false,
-      "enableEmbeddedAsarIntegrityValidation": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
       "onlyLoadAppFromAsar": true
     },
     "publish": [
@@ -50,7 +50,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "icon.ico",
@@ -72,12 +74,18 @@
       "styles.css",
       "icon.ico",
       "package.json",
+      "node_modules/**/*",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!**/node_modules/.bin",
       "!**/*.map",
       "!**/{.git,.github,.vscode,.idea}",
       "!obfuscate.js",
-      "!*.md"
+      "!*.md",
+      "!node_modules/electron/**/*",
+      "!node_modules/electron-builder/**/*",
+      "!node_modules/app-builder-lib/**/*",
+      "!node_modules/builder-util/**/*",
+      "!node_modules/dmg-builder/**/*"
     ]
   }
 }

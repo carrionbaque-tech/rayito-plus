@@ -1,3 +1,4 @@
+
 const { app, BrowserWindow, ipcMain, shell, Notification, globalShortcut, session } = require('electron');
 const http = require('http');
 const path = require('path');
@@ -10,28 +11,28 @@ const cloudflare = require('./cloudflare-manager.js');
 let mainWindow;
 let serverOAuth = null;
 
-const LOGO_URL = "https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg";
+const LOGO_URL = 'https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg';
+const isDev = !app.isPackaged;
 
-// ============ LOGS DEL UPDATER ============
-log.transports.file.level = 'info';
+
+log.transports.file.level = isDev ? 'debug' : 'warn';
+log.transports.console.level = isDev ? 'debug' : false;
+
+
 autoUpdater.logger = log;
-
-// ============ CONFIGURACIÓN DEL AUTO-UPDATER ============
-autoUpdater.autoDownload = false;          // No descargar automáticamente
-autoUpdater.autoInstallOnAppQuit = false;  // ⚠️ CAMBIO: NO instalar al cerrar
-autoUpdater.allowDowngrade = false;        // No permitir versiones viejas
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
+autoUpdater.allowDowngrade = false;
 autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache' };
 autoUpdater.forceDevUpdateConfig = false;
 
-// ⏱️ TIMEOUT: si en 15 segundos no responde GitHub, cancelar
 let updaterTimeout = null;
 function iniciarTimeoutUpdater() {
   clearTimeout(updaterTimeout);
   updaterTimeout = setTimeout(() => {
-    console.log('⏱️ Timeout: la búsqueda de actualizaciones tardó demasiado');
     sendToRenderer('update-status', {
       status: 'error',
-      message: 'No se pudo conectar con el servidor de actualizaciones. Verifica tu conexión a internet.'
+      message: 'No se pudo conectar con el servidor de actualizaciones.',
     });
   }, 15000);
 }
@@ -40,160 +41,116 @@ function cancelarTimeoutUpdater() {
   updaterTimeout = null;
 }
 
-// ============ EVENTOS DEL AUTO-UPDATER ============
 autoUpdater.on('checking-for-update', () => {
-  console.log('🔍 Buscando actualizaciones...');
   iniciarTimeoutUpdater();
   sendToRenderer('update-status', { status: 'checking', message: 'Buscando actualizaciones...' });
 });
 
 autoUpdater.on('update-available', (info) => {
   cancelarTimeoutUpdater();
-  console.log('✅ Actualización disponible:', info.version);
   sendToRenderer('update-status', {
     status: 'available',
     version: info.version,
     releaseDate: info.releaseDate,
     releaseNotes: info.releaseNotes || '',
-    message: `Nueva versión ${info.version} disponible`
+    message: `Nueva versión ${info.version} disponible`,
   });
 });
 
 autoUpdater.on('update-not-available', (info) => {
   cancelarTimeoutUpdater();
-  console.log('✅ No hay actualizaciones. Versión actual:', info.version);
   sendToRenderer('update-status', {
     status: 'not-available',
     version: info.version,
-    message: 'Ya tienes la última versión'
+    message: 'Ya tienes la última versión',
   });
 });
 
 autoUpdater.on('error', (err) => {
   cancelarTimeoutUpdater();
-  console.error('❌ Error en autoUpdater:', err);
   sendToRenderer('update-status', {
     status: 'error',
-    message: 'Error al buscar actualizaciones: ' + (err.message || 'Desconocido')
+    message: 'Error al buscar actualizaciones: ' + (err.message || 'Desconocido'),
   });
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
-  const mensaje = `Descargando... ${progressObj.percent.toFixed(1)}% (${(progressObj.transferred / 1024 / 1024).toFixed(2)} MB / ${(progressObj.total / 1024 / 1024).toFixed(2)} MB)`;
-  console.log('📥', mensaje);
   sendToRenderer('update-status', {
     status: 'downloading',
     percent: progressObj.percent,
     transferred: progressObj.transferred,
     total: progressObj.total,
     bytesPerSecond: progressObj.bytesPerSecond,
-    message: mensaje
+    message: `Descargando... ${progressObj.percent.toFixed(1)}%`,
   });
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-  console.log('✅ Actualización descargada:', info.version);
   sendToRenderer('update-status', {
     status: 'downloaded',
     version: info.version,
-    message: 'Actualización lista para instalar'
+    message: 'Actualización lista para instalar',
   });
 });
 
 function sendToRenderer(channel, data) {
-  if (mainWindow && mainWindow.webContents) {
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
     mainWindow.webContents.send(channel, data);
   }
 }
 
-// ============ IPC: VERIFICAR ACTUALIZACIONES ============
 ipcMain.handle('verificar-actualizaciones', async () => {
   try {
-    console.log('🔍 Verificando actualizaciones manualmente...');
     iniciarTimeoutUpdater();
     const result = await autoUpdater.checkForUpdates();
     return { success: true, updateInfo: result?.updateInfo || null };
   } catch (err) {
     cancelarTimeoutUpdater();
-    console.error('❌ Error verificando:', err);
     return { success: false, error: err.message };
   }
 });
 
 ipcMain.handle('descargar-actualizacion', async () => {
   try {
-    console.log('📥 Iniciando descarga de actualización...');
     await autoUpdater.downloadUpdate();
     return { success: true };
   } catch (err) {
-    console.error('❌ Error descargando:', err);
     return { success: false, error: err.message };
   }
 });
 
-// ============ INSTALAR ACTUALIZACIÓN (VERSIÓN CORREGIDA) ============
 ipcMain.handle('instalar-actualizacion', async () => {
   try {
-    console.log('🚀 Preparando instalación de actualización...');
-
-    // 1. Cerrar conexiones de Firebase limpiamente
     try {
       const { getApps } = require('firebase/app');
       const apps = getApps();
-      for (const app of apps) {
-        try {
-          await app.delete();
-          console.log('🔥 Firebase app cerrada:', app.name);
-        } catch (e) {}
-      }
-    } catch (e) {
-      console.log('⚠️ No se pudo cerrar Firebase:', e.message);
-    }
+      for (const a of apps) { try { await a.delete(); } catch (e) {} }
+    } catch (e) {}
 
-    // 2. Cerrar el servidor OAuth si está activo
-    if (serverOAuth) {
-      try { serverOAuth.close(); } catch (e) {}
-      serverOAuth = null;
-      console.log('🔒 Servidor OAuth cerrado');
-    }
+    if (serverOAuth) { try { serverOAuth.close(); } catch (e) {} serverOAuth = null; }
 
-    // 3. Cerrar todas las ventanas de la app
-    BrowserWindow.getAllWindows().forEach(win => {
-      try {
-        win.removeAllListeners('close');
-        win.destroy();
-      } catch (e) {}
+    BrowserWindow.getAllWindows().forEach((win) => {
+      try { win.removeAllListeners('close'); win.destroy(); } catch (e) {}
     });
-    console.log('🪟 Ventanas cerradas');
 
-    // 4. Esperar 2 segundos para que Windows libere los locks
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    console.log('🚀 Instalando actualización...');
-    // ⚠️ CLAVE: false = no silencioso, false = no forzar relanzamiento
-    // Windows lanzará el nuevo .exe automáticamente por runAfterFinish: true
+    await new Promise((r) => setTimeout(r, 2000));
     autoUpdater.quitAndInstall(false, false);
-
     return { success: true };
   } catch (err) {
-    console.error('❌ Error instalando:', err);
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle('obtener-version-app', () => {
-  return app.getVersion();
-});
+ipcMain.handle('obtener-version-app', () => app.getVersion());
 
-// ============ NOTIFICACIONES PUSH DESDE FIRESTORE ============
-ipcMain.handle('mostrar-notificacion', async (event, { titulo, mensaje, icono }) => {
+ipcMain.handle('mostrar-notificacion', async (_event, { titulo, mensaje, icono }) => {
   try {
     if (!Notification.isSupported()) return false;
     const notif = new Notification({
       title: titulo || 'Rayito Plus',
       body: mensaje || '',
       icon: icono || path.join(__dirname, 'logo.png'),
-      silent: false
+      silent: false,
     });
     notif.on('click', () => {
       if (mainWindow) {
@@ -204,36 +161,23 @@ ipcMain.handle('mostrar-notificacion', async (event, { titulo, mensaje, icono })
     notif.show();
     return true;
   } catch (err) {
-    console.error('❌ Error mostrando notificación:', err);
     return false;
   }
 });
 
-// ============ BLOQUEAR DEVTOOLS Y ATAJOS PELIGROSOS ============
 function bloquearAtajosPeligrosos() {
   try {
-    globalShortcut.register('F12', () => {
-      console.log('🚫 F12 bloqueado');
-    });
-    globalShortcut.register('CommandOrControl+Shift+I', () => {
-      console.log('🚫 Ctrl+Shift+I bloqueado');
-    });
-    globalShortcut.register('CommandOrControl+Shift+J', () => {
-      console.log('🚫 Ctrl+Shift+J bloqueado');
-    });
-    globalShortcut.register('CommandOrControl+Shift+C', () => {
-      console.log('🚫 Ctrl+Shift+C bloqueado');
-    });
-    globalShortcut.register('CommandOrControl+U', () => {
-      console.log('🚫 Ctrl+U bloqueado');
-    });
-    console.log('🛡️ Atajos peligrosos bloqueados');
+    globalShortcut.register('F12', () => {});
+    globalShortcut.register('CommandOrControl+Shift+I', () => {});
+    globalShortcut.register('CommandOrControl+Shift+J', () => {});
+    globalShortcut.register('CommandOrControl+Shift+C', () => {});
+    globalShortcut.register('CommandOrControl+U', () => {});
   } catch (err) {
-    console.error('Error bloqueando atajos:', err);
+    log.error('Error bloqueando atajos:', err);
   }
 }
 
-// ============ VENTANA PRINCIPAL ============
+
 function crearVentana() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -244,43 +188,54 @@ function crearVentana() {
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'logo.png'),
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false,
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: true,          
+      contextIsolation: false,          
+      webSecurity: true,               
       webviewTag: true,
-      devTools: false
-    }
+      devTools: isDev,                 
+      sandbox: false,                
+      spellcheck: false,
+      enableRemoteModule: false,
+    },
   });
 
   mainWindow.setMenu(null);
   mainWindow.setMenuBarVisibility(false);
-
   mainWindow.loadFile('index.html');
 
-  mainWindow.webContents.on('devtools-opened', () => {
-    console.log('🚫 DevTools abiertas, cerrándolas...');
-    mainWindow.webContents.closeDevTools();
+  mainWindow.webContents.on('did-finish-load', () => {
+    log.info('✅ index.html cargado');
   });
 
-  mainWindow.webContents.on('before-input-event', (event, input) => {
-    const key = (input.key || '').toLowerCase();
-    const ctrl = input.control || input.meta;
-    const shift = input.shift;
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc) => {
+    log.error('❌ Error al cargar index.html:', code, desc);
+  });
 
-    if (
-      key === 'f12' ||
-      (ctrl && shift && (key === 'i' || key === 'j' || key === 'c')) ||
-      (ctrl && key === 'u')
-    ) {
-      event.preventDefault();
-      console.log('🚫 Atajo bloqueado:', input.key);
-      return false;
+  
+  if (!isDev) {
+    mainWindow.webContents.on('devtools-opened', () => {
+      mainWindow.webContents.closeDevTools();
+    });
+  }
+
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (!isDev) {
+      const key = (input.key || '').toLowerCase();
+      const ctrl = input.control || input.meta;
+      const shift = input.shift;
+      if (
+        key === 'f12' ||
+        (ctrl && shift && (key === 'i' || key === 'j' || key === 'c')) ||
+        (ctrl && key === 'u')
+      ) {
+        event.preventDefault();
+        return false;
+      }
     }
   });
 
-  mainWindow.webContents.on('context-menu', (e) => {
-    e.preventDefault();
-  });
+  mainWindow.webContents.on('context-menu', (e) => e.preventDefault());
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith('file://')) {
@@ -290,20 +245,25 @@ function crearVentana() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    console.log('🚫 window.open bloqueado:', url);
+    shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    const allowed = ['media', 'fullscreen', 'notifications'];
+    callback(allowed.includes(permission));
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-// ============ ABRIR NAVEGADOR EXTERNO ============
 function abrirEnChrome(urlDestino) {
   return new Promise((resolve) => {
+    if (!/^https?:\/\//i.test(urlDestino)) { resolve(false); return; }
     const rutasChrome = [
       'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
       'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-      path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe')
+      path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe'),
     ];
     let chromePath = null;
     for (const ruta of rutasChrome) {
@@ -320,39 +280,12 @@ function abrirEnChrome(urlDestino) {
   });
 }
 
-ipcMain.handle('abrir-navegador', async (event, url) => await abrirEnChrome(url));
-
-ipcMain.handle('abrir-popup', async (event, { url, width, height, title }) => {
-  const popup = new BrowserWindow({
-    width: width || 1000,
-    height: height || 700,
-    title: title || 'Rayito Plus',
-    backgroundColor: '#0a0a0a',
-    autoHideMenuBar: true,
-    parent: mainWindow,
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false,
-      devTools: false
-    }
-  });
-  popup.setMenu(null);
-  popup.webContents.on('before-input-event', (event, input) => {
-    const key = (input.key || '').toLowerCase();
-    const ctrl = input.control || input.meta;
-    const shift = input.shift;
-    if (key === 'f12' || (ctrl && shift && (key === 'i' || key === 'j' || key === 'c')) || (ctrl && key === 'u')) {
-      event.preventDefault();
-      return false;
-    }
-  });
-  if (url.startsWith('http')) popup.loadURL(url);
-  else popup.loadFile(url);
-  return true;
+ipcMain.handle('abrir-navegador', async (_event, url) => {
+  if (typeof url !== 'string' || url.length > 2048) return false;
+  return await abrirEnChrome(url);
 });
 
-// ============ IPC: PELÍCULAS / SERIES ============
+
 ipcMain.handle('cargar-peliculas', async () => {
   try {
     const movies = await cloudflare.cargarPeliculas();
@@ -371,69 +304,58 @@ ipcMain.handle('cargar-series', async () => {
   }
 });
 
-// ============ SERVIDOR OAUTH ============
 ipcMain.handle('iniciar-servidor-oauth', async () => {
   return new Promise((resolve) => {
     if (serverOAuth) { serverOAuth.close(); serverOAuth = null; }
+
     serverOAuth = http.createServer((req, res) => {
       const reqUrl = new URL(req.url, 'http://127.0.0.1:8765');
+
       if (reqUrl.pathname === '/oauth-callback') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(`
-          <!DOCTYPE html>
-          <html><head><meta charset="UTF-8"><title>Rayito Plus</title>
-          <style>
-            * { margin:0; padding:0; box-sizing:border-box; }
-            body { background: radial-gradient(circle at center, #1a0b2e 0%, #000 80%);
-              color:#fff; font-family:'Segoe UI',Arial,sans-serif;
-              display:flex; flex-direction:column; align-items:center; justify-content:center;
-              height:100vh; text-align:center; overflow:hidden; }
-            .logo-container { width:140px; height:140px; border-radius:30px;
-              background:linear-gradient(135deg,#7c3aed,#4c1d95);
-              display:flex; align-items:center; justify-content:center;
-              box-shadow:0 0 80px rgba(124,58,237,0.8);
-              animation:pulse 2s infinite ease-in-out; margin-bottom:30px; overflow:hidden; }
-            .logo-container img { width:100%; height:100%; object-fit:cover; }
-            .logo-fallback { font-size:70px; color:#fff; }
-            @keyframes pulse { 0%,100%{transform:scale(1);box-shadow:0 0 80px rgba(124,58,237,0.8);} 50%{transform:scale(1.08);box-shadow:0 0 120px rgba(124,58,237,1);} }
-            h1 { color:#fff; font-size:42px; margin-bottom:15px; font-weight:800; letter-spacing:2px; }
-            h1 span { background:linear-gradient(90deg,#a78bfa,#7c3aed); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-            p { color:#9ca3af; font-size:16px; margin-bottom:30px; }
-            .check { width:60px; height:60px; border-radius:50%; background:linear-gradient(135deg,#10b981,#059669); display:flex; align-items:center; justify-content:center; font-size:30px; color:#fff; margin:0 auto 25px; box-shadow:0 0 30px rgba(16,185,129,0.6); animation:checkPop 0.6s ease; }
-            @keyframes checkPop { 0%{transform:scale(0);} 50%{transform:scale(1.2);} 100%{transform:scale(1);} }
-            .close-hint { margin-top:40px; padding:12px 24px; background:rgba(124,58,237,0.15); border:1px solid #7c3aed; border-radius:10px; color:#a78bfa; font-size:13px; font-weight:600; }
-          </style></head><body>
-            <div class="logo-container">
-              <img src="${LOGO_URL}" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-              <div class="logo-fallback" style="display:none;">⚡</div>
-            </div>
-            <h1>Rayito <span>Plus</span></h1>
-            <div class="check">✓</div>
-            <p>Autenticación exitosa</p>
-            <div class="close-hint">🎬 Ya puedes cerrar esta ventana y volver a la app</div>
-            <script>
-              if (window.location.hash) {
-                fetch('/recibir-hash?hash=' + encodeURIComponent(window.location.hash))
-                  .then(() => setTimeout(() => window.close(), 1500));
-              }
-            </script>
-          </body></html>
-        `);
+        res.end(`<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Rayito Plus</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:radial-gradient(circle at center,#1a0b2e 0%,#000 80%);color:#fff;font-family:'Segoe UI',Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;text-align:center;overflow:hidden}
+.logo-container{width:140px;height:140px;border-radius:30px;background:linear-gradient(135deg,#7c3aed,#4c1d95);display:flex;align-items:center;justify-content:center;box-shadow:0 0 80px rgba(124,58,237,.8);animation:pulse 2s infinite ease-in-out;margin-bottom:30px;overflow:hidden}
+.logo-container img{width:100%;height:100%;object-fit:cover}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+h1{color:#fff;font-size:42px;margin-bottom:15px;font-weight:800}
+h1 span{background:linear-gradient(90deg,#a78bfa,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+p{color:#9ca3af;font-size:16px;margin-bottom:30px}
+.check{width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;margin:0 auto 25px}
+.close-hint{margin-top:40px;padding:12px 24px;background:rgba(124,58,237,.15);border:1px solid #7c3aed;border-radius:10px;color:#a78bfa;font-size:13px;font-weight:600}
+</style></head><body>
+<div class="logo-container"><img src="${LOGO_URL}"></div>
+<h1>Rayito <span>Plus</span></h1>
+<div class="check">✓</div>
+<p>Autenticación exitosa</p>
+<div class="close-hint">🎬 Ya puedes cerrar esta ventana</div>
+<script>
+if(window.location.hash){fetch('/recibir-hash?hash='+encodeURIComponent(window.location.hash)).then(()=>setTimeout(()=>window.close(),1500));}
+</script>
+</body></html>`);
         return;
       }
+
       if (reqUrl.pathname === '/recibir-hash') {
         const hash = reqUrl.searchParams.get('hash');
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('OK');
-        if (mainWindow && mainWindow.webContents) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('oauth-hash', hash);
           mainWindow.focus();
         }
         return;
       }
+
       res.writeHead(404); res.end('Not found');
     });
-    serverOAuth.listen(8765, '127.0.0.1', () => resolve('http://127.0.0.1:8765/oauth-callback'));
+
+    serverOAuth.listen(8765, '127.0.0.1', () => {
+      resolve('http://127.0.0.1:8765/oauth-callback');
+    });
   });
 });
 
@@ -442,30 +364,25 @@ ipcMain.handle('detener-servidor-oauth', async () => {
   return true;
 });
 
-// ============ INICIO DE LA APP ============
 app.whenReady().then(() => {
   if (process.platform === 'win32') {
     app.setAppUserModelId('com.rayitoplus.rayitoplus');
   }
 
   bloquearAtajosPeligrosos();
-
   crearVentana();
 
   setTimeout(() => {
-    console.log('🔍 Verificando actualizaciones al inicio...');
+    log.info('🔍 Verificando actualizaciones al inicio...');
     iniciarTimeoutUpdater();
-    autoUpdater.checkForUpdates().catch(err => {
+    autoUpdater.checkForUpdates().catch((err) => {
       cancelarTimeoutUpdater();
-      console.log('⚠️ No se pudo verificar actualizaciones al inicio:', err.message);
+      log.warn('⚠️ No se pudo verificar:', err.message);
     });
   }, 3000);
 });
 
-app.on('will-quit', () => {
-  globalShortcut.unregisterAll();
-});
-
+app.on('will-quit', () => globalShortcut.unregisterAll());
 app.on('window-all-closed', () => {
   if (serverOAuth) serverOAuth.close();
   if (process.platform !== 'darwin') app.quit();

@@ -8,7 +8,7 @@
 </head>
 <body>
 
-  <!-- ============ SPLASH ============ -->
+ 
   <div id="splash">
     <div class="splash-logo">
       <img src="https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg" alt="Rayito Plus" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -18,7 +18,6 @@
     <div class="splash-loader"></div>
   </div>
 
-  <!-- ============ MODAL DE ACTUALIZACIÓN ============ -->
   <div id="update-modal" class="update-modal hidden">
     <div class="update-box">
       <div class="update-icon">
@@ -26,7 +25,7 @@
       </div>
       <h2 id="update-title">Actualización disponible</h2>
       <p id="update-message" class="update-message">Hay una nueva versión disponible</p>
-      
+
       <div class="update-version-info" id="update-version-info" style="display:none;">
         <span class="update-version-badge" id="update-version-badge">v1.0.0</span>
         <span class="update-current-version" id="update-current-version">Actual: v1.0.0</span>
@@ -46,7 +45,6 @@
     </div>
   </div>
 
-  <!-- ============ AUTH ============ -->
   <div id="auth-container" class="hidden">
     <div class="auth-box">
       <div id="pantalla-login" class="auth-pantalla">
@@ -100,7 +98,6 @@
     </div>
   </div>
 
-  <!-- ============ APP PRINCIPAL ============ -->
   <div id="app" class="hidden">
     <header class="topbar">
       <div class="topbar-left">
@@ -108,6 +105,8 @@
         <button class="top-btn" title="Buscar" id="top-buscar"><i class="fa-solid fa-magnifying-glass"></i></button>
         <button class="top-btn" title="Tienda" id="top-tienda"><i class="fa-solid fa-store"></i></button>
         <button class="top-btn" title="Notificaciones" id="top-notif"><i class="fa-solid fa-bell"></i><span class="badge" id="notif-badge">0</span></button>
+        <button class="top-btn top-btn-donate" title="Apóyanos" id="top-donar"><i class="fa-solid fa-heart"></i></button>
+        <button class="top-btn top-btn-chat" title="Mensajes" id="top-chat"><i class="fa-solid fa-comments"></i></button>
       </div>
       <div class="topbar-right">
         <img src="https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg" alt="Rayito Plus" class="logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -117,7 +116,6 @@
       </div>
     </header>
 
-    <!-- Buscador -->
     <div id="buscador-overlay" class="buscador-overlay hidden">
       <div class="buscador-bar">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -127,7 +125,6 @@
       <div id="resultados-busqueda" class="resultados-busqueda"></div>
     </div>
 
-    <!-- Panel de Notificaciones -->
     <div id="notif-overlay" class="notif-overlay hidden">
       <div class="notif-panel">
         <div class="notif-panel-header">
@@ -145,7 +142,124 @@
       </div>
     </div>
 
-    <!-- Menú de cuenta lateral -->
+    <!-- ============ OVERLAY DE DONACIONES PAYPAL ============ -->
+    <div id="donar-overlay" class="donar-overlay hidden">
+      <div class="donar-panel">
+        <button class="donar-cerrar" id="cerrar-donar"><i class="fa-solid fa-xmark"></i></button>
+
+        <div class="donar-header">
+          <div class="donar-icono">
+            <i class="fa-solid fa-heart"></i>
+          </div>
+          <h2>Apóyanos <span class="donar-corazon">❤️</span></h2>
+          <p class="donar-sub">Tu apoyo mantiene Rayito Plus vivo y sin anuncios</p>
+        </div>
+
+        <div class="donar-mensaje">
+          <p>
+            Gracias por usar <strong>Rayito Plus</strong>. Cada donación nos ayuda a
+            mantener los servidores activos, mejorar el reproductor y agregar más contenido
+            para ti y toda la comunidad.
+          </p>
+        </div>
+
+        <div class="donar-montos">
+          <p class="donar-label">Elige un monto:</p>
+          <div class="donar-montos-grid">
+            <button class="donar-monto" data-monto="1">$1</button>
+            <button class="donar-monto" data-monto="3">$3</button>
+            <button class="donar-monto active" data-monto="5">$5</button>
+            <button class="donar-monto" data-monto="10">$10</button>
+            <button class="donar-monto" data-monto="20">$20</button>
+            <button class="donar-monto" data-monto="50">$50</button>
+          </div>
+        </div>
+
+        <div class="donar-custom">
+          <p class="donar-label">O ingresa un monto personalizado:</p>
+          <div class="donar-input-wrapper">
+            <span class="donar-moneda">$</span>
+            <input type="number" id="donar-monto-custom" placeholder="0.00" min="1" step="0.01">
+            <span class="donar-moneda-code">USD</span>
+          </div>
+        </div>
+
+        <button class="btn-donar-paypal" id="btn-donar-paypal">
+          <i class="fa-brands fa-paypal"></i>
+          Donar con PayPal
+        </button>
+
+        <div class="donar-footer">
+          <i class="fa-solid fa-shield-halved"></i>
+          Pago 100% seguro procesado por PayPal
+        </div>
+
+        <div class="donar-gracias">
+          <p>💜 <strong>¡Gracias por tu apoyo!</strong> 💜</p>
+          <p class="donar-firma">— El equipo de Rayito Plus</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ OVERLAY DE CHAT ============ -->
+    <div id="chat-overlay" class="chat-overlay hidden">
+      <div class="chat-panel">
+
+        <!-- Panel izquierdo: lista de amigos -->
+        <div class="chat-sidebar">
+          <div class="chat-sidebar-header">
+            <h2><i class="fa-solid fa-comments"></i> Mensajes</h2>
+            <button class="chat-sidebar-cerrar" id="cerrar-chat"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="chat-sidebar-buscar">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="chat-buscar-amigo" placeholder="Buscar amigo...">
+          </div>
+          <div id="chat-amigos-lista" class="chat-amigos-lista">
+            <p class="chat-empty">Cargando amigos...</p>
+          </div>
+        </div>
+
+        <!-- Panel derecho: conversación -->
+        <div class="chat-conversacion">
+          <div class="chat-conversacion-header" id="chat-conv-header">
+            <div class="chat-conv-header-info">
+              <img id="chat-conv-avatar" src="https://i.ibb.co/JRZxfPcM/ic-placeholder.jpg" class="chat-conv-avatar">
+              <div>
+                <h3 id="chat-conv-nombre">Selecciona un amigo</h3>
+                <p id="chat-conv-estado">Para empezar a chatear</p>
+              </div>
+            </div>
+            <button class="chat-conv-cerrar" id="chat-conv-cerrar-movil"><i class="fa-solid fa-arrow-left"></i></button>
+          </div>
+
+          <div id="chat-mensajes" class="chat-mensajes">
+            <div class="chat-empty-grande">
+              <i class="fa-solid fa-comments"></i>
+              <h3>Selecciona un amigo</h3>
+              <p>Elige un amigo de la lista para empezar a chatear</p>
+            </div>
+          </div>
+
+          <div class="chat-input-wrapper hidden" id="chat-input-wrapper">
+            <button class="chat-sticker-btn" id="chat-sticker-btn" title="Emojis">
+              <i class="fa-solid fa-face-smile"></i>
+            </button>
+            <input type="text" id="chat-input" placeholder="Escribe un mensaje..." maxlength="500">
+            <button class="chat-send-btn" id="chat-send-btn">
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+          </div>
+
+          <!-- Panel de emojis -->
+          <div class="chat-emojis-panel hidden" id="chat-emojis-panel">
+            <div class="chat-emojis-grid" id="chat-emojis-grid"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <div id="cuenta-overlay" class="cuenta-overlay hidden">
       <div class="cuenta-panel">
         <button class="cuenta-cerrar" id="cerrar-cuenta"><i class="fa-solid fa-xmark"></i></button>
@@ -182,11 +296,10 @@
     </nav>
   </div>
 
-  <!-- ============ REPRODUCTOR ============ -->
   <div id="player-overlay" class="player-overlay hidden">
     <video id="video-player" preload="metadata" style="display:none;"></video>
     <video id="hls-player" preload="metadata" style="display:none;"></video>
-    <webview id="webview-player" 
+    <webview id="webview-player"
              src="about:blank"
              style="display:none;width:100%;height:100%;background:#000;"
              allowpopups>
@@ -230,7 +343,7 @@
     </div>
   </div>
 
-  <!-- ============ MINI REPRODUCTOR FLOTANTE ============ -->
+
   <div id="mini-player" class="mini-player hidden">
     <video id="mini-video" preload="metadata"></video>
     <div class="mini-player-controls">
@@ -241,6 +354,57 @@
     </div>
   </div>
 
-<script src="app-obfuscated/renderer.js"></script>
+  
+  <script>
+    (function() {
+      function mostrarError(titulo, detalle) {
+        try {
+          var splash = document.getElementById('splash');
+          if (splash) splash.remove();
+          var auth = document.getElementById('auth-container');
+          if (auth) auth.classList.remove('hidden');
+          var loginScreen = document.getElementById('pantalla-login');
+          if (loginScreen) loginScreen.classList.remove('hidden');
+          var appEl = document.getElementById('app');
+          if (appEl) appEl.classList.add('hidden');
+
+          var errDiv = document.createElement('div');
+          errDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);color:#fff;padding:30px;z-index:999999;font-family:monospace;font-size:13px;overflow:auto;';
+          errDiv.innerHTML = '<h2 style="color:#ef4444;margin-bottom:15px;">❌ ' + titulo + '</h2>' +
+                            '<pre style="white-space:pre-wrap;word-break:break-word;background:#1a1a1a;padding:20px;border-radius:10px;border:1px solid #333;">' +
+                            String(detalle).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') +
+                            '</pre>' +
+                            '<button onclick="location.reload()" style="margin-top:20px;padding:12px 24px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;">🔄 Reintentar</button>';
+          document.body.appendChild(errDiv);
+        } catch (e) {
+          alert(titulo + ': ' + detalle);
+        }
+      }
+
+      window.addEventListener('error', function(event) {
+        console.error('❌ [renderer] Error global:', event.error || event.message);
+        mostrarError('Error en la aplicación', (event.error && event.error.stack) || event.message || 'Error desconocido');
+      });
+
+      window.addEventListener('unhandledrejection', function(event) {
+        console.error('❌ [renderer] Promesa rechazada:', event.reason);
+        mostrarError('Error de promesa', (event.reason && event.reason.stack) || String(event.reason));
+      });
+
+      window.__mostrarErrorRayito = mostrarError;
+    })();
+  </script>
+
+  
+ <script>
+  try {
+    require('./app-obfuscated/renderer.js');
+  } catch (err) {
+    console.error('❌ [renderer] Error:', err);
+    if (window.__mostrarErrorRayito) {
+      window.__mostrarErrorRayito('Error cargando renderer.js', err.stack || err.message);
+    }
+  }
+</script>
 </body>
 </html>

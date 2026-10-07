@@ -14,10 +14,21 @@ const {
 const { ipcRenderer } = require('electron');
 const Hls = require('hls.js');
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getDatabase(app);
-const firestore = getFirestore(app);
+console.log('🟢 [renderer] Iniciando...');
+
+let app, auth, db, firestore;
+
+try {
+  console.log('🟢 [renderer] Inicializando Firebase...');
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getDatabase(app);
+  firestore = getFirestore(app);
+  console.log('✅ [renderer] Firebase inicializado correctamente');
+} catch (err) {
+  console.error('❌ [renderer] Error al inicializar Firebase:', err);
+  alert('Error al inicializar Firebase: ' + err.message);
+}
 
 let PELICULAS = [];
 let SERIES = [];
@@ -30,7 +41,7 @@ let CONFIG_USUARIO = {
   calidad: 'auto'
 };
 
-// ============ HELPERS ============
+
 function getCategoriaNombre(cat) {
   const map = {
     featured: 'Destacada', action: 'Acción', animation: 'Animación',
@@ -50,15 +61,18 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
-// ============ SPLASH ============
 window.addEventListener('load', () => {
+  console.log('🟢 [renderer] window load');
   setTimeout(() => {
     const splash = document.getElementById('splash');
-    if (splash) { splash.classList.add('fade-out'); setTimeout(() => splash.remove(), 800); }
+    if (splash) {
+      console.log('🟢 [renderer] Removiendo splash');
+      splash.classList.add('fade-out');
+      setTimeout(() => splash.remove(), 800);
+    }
   }, 2500);
 });
 
-// ============ CONFIG ============
 function cargarConfig() {
   try {
     const saved = localStorage.getItem('config_rayito');
@@ -68,7 +82,6 @@ function cargarConfig() {
 function guardarConfig() { localStorage.setItem('config_rayito', JSON.stringify(CONFIG_USUARIO)); }
 cargarConfig();
 
-// ============ NOTIFICACIONES ============
 async function mostrarNotificacion(titulo, mensaje, icono) {
   if (!CONFIG_USUARIO.notificaciones) return;
   try {
@@ -78,22 +91,23 @@ async function mostrarNotificacion(titulo, mensaje, icono) {
   } catch (e) {}
 }
 
-// ============ AUTH ============
 const pantallas = {
   login: document.getElementById('pantalla-login'),
   registro: document.getElementById('pantalla-registro'),
   forgot: document.getElementById('pantalla-forgot')
 };
 function mostrarPantalla(nombre) {
-  Object.values(pantallas).forEach(p => p.classList.add('hidden'));
-  pantallas[nombre].classList.remove('hidden');
+  console.log('🟢 [renderer] mostrarPantalla:', nombre);
+  Object.values(pantallas).forEach(p => p && p.classList.add('hidden'));
+  if (pantallas[nombre]) pantallas[nombre].classList.remove('hidden');
   limpiarErrores();
 }
 function limpiarErrores() {
-  document.getElementById('login-error').textContent = '';
-  document.getElementById('register-error').textContent = '';
-  document.getElementById('forgot-error').textContent = '';
-  document.getElementById('forgot-success').textContent = '';
+  const ids = ['login-error', 'register-error', 'forgot-error', 'forgot-success'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  });
 }
 document.getElementById('link-register').addEventListener('click', () => mostrarPantalla('registro'));
 document.getElementById('link-login').addEventListener('click', () => mostrarPantalla('login'));
@@ -212,11 +226,16 @@ async function cerrarSesion() {
   await signOut(auth);
 }
 
+
+console.log('🟢 [renderer] Registrando onAuthStateChanged...');
 onAuthStateChanged(auth, async (user) => {
+  console.log('🟢 [renderer] onAuthStateChanged disparado. user:', user ? user.email : 'null');
   const authContainer = document.getElementById('auth-container');
   const appContainer = document.getElementById('app');
+  
   setTimeout(async () => {
     if (user) {
+      console.log('🟢 [renderer] Usuario logueado, mostrando app');
       authContainer.classList.add('hidden');
       appContainer.classList.remove('hidden');
       try {
@@ -230,14 +249,31 @@ onAuthStateChanged(auth, async (user) => {
       await cargarTodoElContenido();
       mostrarHome();
     } else {
+      console.log('🟢 [renderer] Sin usuario, mostrando login');
       appContainer.classList.add('hidden');
       authContainer.classList.remove('hidden');
       mostrarPantalla('login');
     }
-  }, 2600);
+  }, 1000); 
 });
 
-// ============ CARGA ============
+setTimeout(() => {
+  const authContainer = document.getElementById('auth-container');
+  const appContainer = document.getElementById('app');
+  const splash = document.getElementById('splash');
+  
+  if (splash) { splash.classList.add('fade-out'); setTimeout(() => splash.remove(), 800); }
+  
+  const authHidden = authContainer.classList.contains('hidden');
+  const appHidden = appContainer.classList.contains('hidden');
+  
+  if (authHidden && appHidden) {
+    console.log('⚠️ [renderer] Fallback: mostrando login forzadamente');
+    authContainer.classList.remove('hidden');
+    mostrarPantalla('login');
+  }
+}, 4000);
+
 const dynamicContent = document.getElementById('dynamic-content');
 const loader = document.getElementById('loader');
 function mostrarLoader(show) {
@@ -266,7 +302,7 @@ async function cargarTodoElContenido() {
   mostrarLoader(false);
 }
 
-// ============ HOME ============
+
 function mostrarHome() {
   VISTA_ACTUAL = { tipo: 'home' };
   detenerHeroSlider();
@@ -469,7 +505,7 @@ function mostrarCategoriaCompleta(catKey, titulo) {
   bindPeliculaCards();
 }
 
-// ============ DETALLE PELÍCULA ============
+
 async function mostrarDetallePelicula(movie) {
   VISTA_ACTUAL = { tipo: 'detalle', pelicula: movie };
   detenerHeroSlider();
@@ -574,13 +610,13 @@ async function mostrarDetallePelicula(movie) {
   window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
-// ============ COMENTARIOS ============
+
+// ============================================================
+// ============ CARGAR COMENTARIOS (VERSIÓN MEJORADA) =========
+// ============================================================
 async function cargarComentariosFirestore(movie) {
   const movieId = movie.id;
   const movieTitle = movie.title || movie.id;
-
-  console.log('🔍 Cargando comentarios para:', movieTitle, '(id:', movieId + ')');
-
   const lista = document.getElementById('comentarios-lista');
   const count = document.getElementById('comentarios-count');
   if (!lista) return;
@@ -588,41 +624,56 @@ async function cargarComentariosFirestore(movie) {
   const todos = [];
   const idsVistos = new Set();
 
+  // ============================================================
+  // FUENTE 1: movie_comments/{movieId}/comments
+  // (Formato nuevo de la app móvil)
+  // ============================================================
   try {
     const refA = collection(firestore, 'movie_comments', movieId, 'comments');
     const snapA = await getDocs(refA);
     snapA.forEach(d => {
-      const data = d.data();
       if (!idsVistos.has(d.id)) {
         idsVistos.add(d.id);
-        todos.push({ id: d.id, ...data });
+        const data = d.data();
+        // Validar que el comentario pertenezca a esta película
+        if (!data.movieId || 
+            data.movieId === movieId || 
+            data.movieId === movieTitle ||
+            data.movieId === movie.title) {
+          todos.push({ id: d.id, ...data });
+        }
       }
     });
-    console.log('✅ Ruta A (subcolección):', snapA.size, 'comentarios');
   } catch (e) {
-    console.warn('⚠️ Ruta A falló:', e.message);
+    console.warn('Fuente 1 falló:', e.message);
   }
 
+  // ============================================================
+  // FUENTE 2: movie_comments/{movieTitle}/comments
+  // (Por si guardan con el título como ID)
+  // ============================================================
   try {
-    const refB = query(
-      collectionGroup(firestore, 'movie_comments'),
-      where('movieId', '==', movieTitle)
-    );
-    const snapB = await getDocs(refB);
-    snapB.forEach(d => {
-      if (!idsVistos.has(d.id)) {
-        idsVistos.add(d.id);
-        todos.push({ id: d.id, ...d.data() });
-      }
-    });
-    console.log('✅ Ruta B (collectionGroup por título):', snapB.size, 'comentarios');
+    if (movieTitle && movieTitle !== movieId) {
+      const refB = collection(firestore, 'movie_comments', movieTitle, 'comments');
+      const snapB = await getDocs(refB);
+      snapB.forEach(d => {
+        if (!idsVistos.has(d.id)) {
+          idsVistos.add(d.id);
+          todos.push({ id: d.id, ...d.data() });
+        }
+      });
+    }
   } catch (e) {
-    console.warn('⚠️ Ruta B falló:', e.message);
+    console.warn('Fuente 2 falló:', e.message);
   }
 
+  // ============================================================
+  // FUENTE 3: collectionGroup('comments') filtrando por movieId
+  // (Comentarios en subcolección de cualquier documento)
+  // ============================================================
   try {
     const refC = query(
-      collectionGroup(firestore, 'movie_comments'),
+      collectionGroup(firestore, 'comments'),
       where('movieId', '==', movieId)
     );
     const snapC = await getDocs(refC);
@@ -632,17 +683,96 @@ async function cargarComentariosFirestore(movie) {
         todos.push({ id: d.id, ...d.data() });
       }
     });
-    console.log('✅ Ruta C (collectionGroup por id):', snapC.size, 'comentarios');
   } catch (e) {
-    console.warn('⚠️ Ruta C falló:', e.message);
+    console.warn('Fuente 3 falló:', e.message);
   }
 
+  // ============================================================
+  // FUENTE 4: collectionGroup('comments') filtrando por TÍTULO
+  // (Como el caso "Godzilla vs Kong" o "Buddy")
+  // ============================================================
+  try {
+    if (movieTitle && movieTitle !== movieId) {
+      const refD = query(
+        collectionGroup(firestore, 'comments'),
+        where('movieId', '==', movieTitle)
+      );
+      const snapD = await getDocs(refD);
+      snapD.forEach(d => {
+        if (!idsVistos.has(d.id)) {
+          idsVistos.add(d.id);
+          todos.push({ id: d.id, ...d.data() });
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Fuente 4 falló:', e.message);
+  }
+
+  // ============================================================
+  // FUENTE 5: movie_comments (raíz) - documentos directos
+  // (Algunos formatos guardan comentarios en la raíz)
+  // ============================================================
+  try {
+    const refE = query(
+      collection(firestore, 'movie_comments'),
+      where('movieId', '==', movieId)
+    );
+    const snapE = await getDocs(refE);
+    snapE.forEach(d => {
+      if (!idsVistos.has(d.id)) {
+        // Solo agregar si tiene texto (es un comentario, no un contenedor)
+        const data = d.data();
+        if (data.text || data.message) {
+          idsVistos.add(d.id);
+          todos.push({ id: d.id, ...data });
+        }
+      }
+    });
+  } catch (e) {
+    console.warn('Fuente 5 falló:', e.message);
+  }
+
+  // ============================================================
+  // FUENTE 6: movie_comments (raíz) - filtrando por título
+  // ============================================================
+  try {
+    if (movieTitle && movieTitle !== movieId) {
+      const refF = query(
+        collection(firestore, 'movie_comments'),
+        where('movieId', '==', movieTitle)
+      );
+      const snapF = await getDocs(refF);
+      snapF.forEach(d => {
+        if (!idsVistos.has(d.id)) {
+          const data = d.data();
+          if (data.text || data.message) {
+            idsVistos.add(d.id);
+            todos.push({ id: d.id, ...data });
+          }
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('Fuente 6 falló:', e.message);
+  }
+
+  // ============================================================
+  // ORDENAR POR FECHA (más recientes primero)
+  // ============================================================
   todos.sort((a, b) => {
-    const tA = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : (a.timestamp || 0);
-    const tB = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : (b.timestamp || 0);
+    const tA = a.timestamp?.toDate 
+      ? a.timestamp.toDate().getTime() 
+      : (a.timestamp || a.createdAt || 0);
+    const tB = b.timestamp?.toDate 
+      ? b.timestamp.toDate().getTime() 
+      : (b.timestamp || b.createdAt || 0);
     return tB - tA;
   });
 
+  // ============================================================
+  // MOSTRAR RESULTADOS
+  // ============================================================
   if (count) count.textContent = todos.length;
 
   if (todos.length === 0) {
@@ -650,6 +780,7 @@ async function cargarComentariosFirestore(movie) {
     return;
   }
 
+  console.log(`✅ ${todos.length} comentarios cargados para "${movieTitle}"`);
   lista.innerHTML = todos.map(c => renderComentarioFirestore(c)).join('');
 }
 
@@ -714,9 +845,7 @@ async function enviarComentarioFirestore(contenido) {
         edited: false,
         lastEdited: null
       });
-    } catch (e) {
-      console.warn('⚠️ No se pudo guardar en estructura legacy:', e.message);
-    }
+    } catch (e) {}
 
     input.value = '';
     mostrarNotificacion('Comentario publicado', 'Tu comentario se publicó correctamente');
@@ -727,7 +856,7 @@ async function enviarComentarioFirestore(contenido) {
   }
 }
 
-// ============ LISTA / FAVORITOS ============
+
 async function estaEnLista(userId, movieId, tipo) {
   try {
     const docRef = doc(firestore, 'user_notifications', userId, tipo, movieId);
@@ -825,7 +954,7 @@ async function mostrarFavoritos() {
   }
 }
 
-// ============ SERIES ============
+
 function mostrarSeries() {
   VISTA_ACTUAL = { tipo: 'series' };
   detenerHeroSlider();
@@ -955,7 +1084,7 @@ async function mostrarDetalleSerie(serie) {
   await cargarComentariosFirestore(serie);
 }
 
-// ============ BUSCADOR ============
+
 const buscadorOverlay = document.getElementById('buscador-overlay');
 const inputBusqueda = document.getElementById('input-busqueda');
 const resultadosBusqueda = document.getElementById('resultados-busqueda');
@@ -1008,7 +1137,6 @@ function buscar(query) {
   });
 }
 
-// ============ MENÚ CUENTA ============
 const cuentaOverlay = document.getElementById('cuenta-overlay');
 document.getElementById('top-cuenta').addEventListener('click', () => cuentaOverlay.classList.remove('hidden'));
 document.getElementById('cerrar-cuenta').addEventListener('click', () => cuentaOverlay.classList.add('hidden'));
@@ -1022,7 +1150,7 @@ document.getElementById('op-nuestras-apps').addEventListener('click', () => { cu
 document.getElementById('op-configuracion').addEventListener('click', () => { cuentaOverlay.classList.add('hidden'); mostrarConfiguracion(); });
 document.getElementById('op-salir').addEventListener('click', async () => { cuentaOverlay.classList.add('hidden'); await cerrarSesion(); });
 
-// ============ NUESTRAS APPS ============
+
 async function mostrarNuestrasApps() {
   dynamicContent.innerHTML = `
     <div class="vista-completa">
@@ -1069,7 +1197,7 @@ async function mostrarNuestrasApps() {
   }
 }
 
-// ============ MI CUENTA ============
+
 function mostrarMiCuenta() {
   const user = auth.currentUser;
   if (!user) return;
@@ -1097,17 +1225,143 @@ function mostrarMiCuenta() {
 }
 
 function confirmarEliminarCuenta() {
-  const confirmar = prompt('⚠️ Esta acción eliminará PERMANENTEMENTE tu cuenta.\n\nEscribe "ELIMINAR" para confirmar:');
-  if (confirmar !== 'ELIMINAR') { if (confirmar !== null) alert('Cancelado'); return; }
   const user = auth.currentUser;
   if (!user) return;
-  Promise.all([set(ref(db, 'users/' + user.uid), null), set(ref(db, 'friends/' + user.uid), null)])
-    .then(() => user.delete())
-    .then(() => alert('✅ Cuenta eliminada'))
-    .catch(err => alert(err.code === 'auth/requires-recent-login' ? 'Cierra sesión y vuelve a entrar' : 'Error: ' + err.message));
+
+  
+  const modal = document.createElement('div');
+  modal.id = 'modal-eliminar-cuenta';
+  modal.style.cssText = `
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(10px); z-index: 99999;
+    display: flex; align-items: center; justify-content: center;
+    animation: fadeIn 0.3s;
+  `;
+  modal.innerHTML = `
+    <div style="background: linear-gradient(180deg,#1a0b2e 0%,#0f0a1a 100%);
+                border: 2px solid #ef4444; border-radius: 20px;
+                padding: 35px 30px; max-width: 460px; width: 90%;
+                text-align: center; box-shadow: 0 0 60px rgba(239,68,68,0.5);">
+      <div style="width:70px;height:70px;border-radius:50%;
+                  background:linear-gradient(135deg,#ef4444,#991b1b);
+                  display:flex;align-items:center;justify-content:center;
+                  font-size:32px;color:#fff;margin:0 auto 20px;
+                  box-shadow:0 0 30px rgba(239,68,68,0.8);">⚠️</div>
+      <h2 style="color:#fff;font-size:22px;font-weight:800;margin-bottom:12px;">
+        Eliminar cuenta
+      </h2>
+      <p style="color:#d1d5db;font-size:14px;line-height:1.6;margin-bottom:20px;">
+        Esta acción eliminará <strong style="color:#ef4444;">PERMANENTEMENTE</strong> tu cuenta
+        y todos tus datos. No se puede deshacer.
+      </p>
+      <p style="color:#9ca3af;font-size:13px;margin-bottom:10px;">
+        Escribe <strong style="color:#ef4444;">ELIMINAR</strong> para confirmar:
+      </p>
+      <input type="text" id="input-confirmar-eliminar"
+             placeholder="ELIMINAR"
+             style="width:100%;padding:14px;background:#0a0a0a;
+                    border:2px solid #2a1a3d;border-radius:10px;
+                    color:#fff;font-size:15px;text-align:center;
+                    outline:none;margin-bottom:20px;font-weight:700;
+                    letter-spacing:2px;">
+      <div style="display:flex;gap:12px;">
+        <button id="btn-cancelar-eliminar"
+                style="flex:1;padding:14px;background:rgba(255,255,255,0.1);
+                       border:1px solid rgba(255,255,255,0.2);color:#fff;
+                       border-radius:10px;font-size:14px;font-weight:700;
+                       cursor:pointer;">
+          Cancelar
+        </button>
+        <button id="btn-confirmar-eliminar"
+                style="flex:1;padding:14px;
+                       background:linear-gradient(135deg,#ef4444,#991b1b);
+                       border:none;color:#fff;border-radius:10px;
+                       font-size:14px;font-weight:700;cursor:pointer;
+                       box-shadow:0 5px 20px rgba(239,68,68,0.5);">
+          Eliminar
+        </button>
+      </div>
+      <p id="error-eliminar" style="color:#ef4444;font-size:13px;margin-top:15px;min-height:18px;"></p>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const input = document.getElementById('input-confirmar-eliminar');
+  const errorEl = document.getElementById('error-eliminar');
+  input.focus();
+
+
+  document.getElementById('btn-cancelar-eliminar').addEventListener('click', () => {
+    modal.remove();
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+
+  input.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      document.getElementById('btn-confirmar-eliminar').click();
+    }
+  });
+
+  document.getElementById('btn-confirmar-eliminar').addEventListener('click', async () => {
+    const valor = input.value.trim();
+    if (valor !== 'ELIMINAR') {
+      errorEl.textContent = 'Debes escribir exactamente "ELIMINAR"';
+      input.style.borderColor = '#ef4444';
+      return;
+    }
+
+    errorEl.textContent = 'Eliminando cuenta...';
+    errorEl.style.color = '#fbbf24';
+
+    try {
+  
+      await Promise.all([
+        set(ref(db, 'users/' + user.uid), null),
+        set(ref(db, 'friends/' + user.uid), null)
+      ]);
+
+  
+      await user.delete();
+
+      
+      modal.remove();
+
+      const success = document.createElement('div');
+      success.style.cssText = `
+        position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+        z-index: 99999; display: flex; align-items: center;
+        justify-content: center; animation: fadeIn 0.3s;
+      `;
+      success.innerHTML = `
+        <div style="text-align:center;padding:40px;">
+          <div style="width:80px;height:80px;border-radius:50%;
+                      background:linear-gradient(135deg,#10b981,#059669);
+                      display:flex;align-items:center;justify-content:center;
+                      font-size:40px;color:#fff;margin:0 auto 20px;
+                      box-shadow:0 0 40px rgba(16,185,129,0.8);">✓</div>
+          <h2 style="color:#fff;font-size:24px;font-weight:800;">Cuenta eliminada</h2>
+          <p style="color:#9ca3af;font-size:14px;margin-top:10px;">Cerrando sesión...</p>
+        </div>
+      `;
+      document.body.appendChild(success);
+      setTimeout(() => success.remove(), 2000);
+
+    } catch (err) {
+      console.error('Error eliminando cuenta:', err);
+      if (err.code === 'auth/requires-recent-login') {
+        errorEl.textContent = 'Por seguridad, cierra sesión y vuelve a entrar antes de eliminar.';
+      } else {
+        errorEl.textContent = 'Error: ' + err.message;
+      }
+      errorEl.style.color = '#ef4444';
+    }
+  });
 }
 
-// ============ AMIGOS ============
+
 async function mostrarAmigos() {
   const user = auth.currentUser;
   if (!user) return;
@@ -1248,7 +1502,6 @@ async function enviarSolicitudAmistad(toUserId, toUserName, btnElement) {
   } catch (err) { alert('Error: ' + err.message); }
 }
 
-// ============ CONFIGURACIÓN ============
 function mostrarConfiguracion() {
   dynamicContent.innerHTML = `
     <div class="vista-completa">
@@ -1278,7 +1531,7 @@ function mostrarConfiguracion() {
   });
 }
 
-// ============ TIENDA ============
+
 async function mostrarTienda() {
   dynamicContent.innerHTML = `
     <div class="vista-completa">
@@ -1312,9 +1565,6 @@ async function mostrarTienda() {
 }
 document.getElementById('top-tienda').addEventListener('click', mostrarTienda);
 
-// ============================================================
-// REPRODUCTOR AVANZADO - VOD + HLS + WEBVIEW
-// ============================================================
 
 const playerOverlay = document.getElementById('player-overlay');
 const videoPlayer = document.getElementById('video-player');
@@ -1339,7 +1589,6 @@ let hlsInstance = null;
 let reproductorActivo = 'video';
 let esContenidoVivo = false;
 
-// Mini reproductor
 const miniPlayer = document.getElementById('mini-player');
 const miniVideo = document.getElementById('mini-video');
 const miniTitle = document.getElementById('mini-title');
@@ -1780,9 +2029,6 @@ function formatTime(s) {
   return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
 }
 
-// ============================================================
-// MINI REPRODUCTOR FLOTANTE (PICTURE-IN-PICTURE)
-// ============================================================
 function minimizarReproductor() {
   let url = null, titulo = playerTitle.textContent, tipo = 'video';
 
@@ -1887,7 +2133,6 @@ document.getElementById('mini-expand').addEventListener('click', () => {
   document.addEventListener('mouseup', () => { isDown = false; });
 })();
 
-// ============ NAVEGACIÓN ============
 document.querySelectorAll('.bottom-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.bottom-btn').forEach(b => b.classList.remove('active'));
@@ -1898,9 +2143,6 @@ document.querySelectorAll('.bottom-btn').forEach(btn => {
   });
 });
 
-// ============================================================
-// 🚀 SISTEMA DE AUTO-ACTUALIZACIÓN (VERSIÓN CORREGIDA)
-// ============================================================
 const updateModal = document.getElementById('update-modal');
 const updateTitle = document.getElementById('update-title');
 const updateMessage = document.getElementById('update-message');
@@ -2022,8 +2264,6 @@ ipcRenderer.on('update-status', (event, data) => {
       btnUpdatePrimary.textContent = 'Reiniciar ahora';
       btnUpdatePrimary.disabled = false;
 
-      // ⚠️ AUTO-INSTALAR: 5 segundos después de descargar
-      // Esto le da tiempo al usuario a leer el mensaje
       setTimeout(async () => {
         console.log('⏰ Auto-instalando actualización...');
         await ipcRenderer.invoke('instalar-actualizacion');
@@ -2074,9 +2314,6 @@ document.getElementById('op-actualizaciones').addEventListener('click', async ()
   }
 });
 
-// ============================================================
-// 🔔 SISTEMA DE NOTIFICACIONES PUSH
-// ============================================================
 const notifOverlay = document.getElementById('notif-overlay');
 const notifList = document.getElementById('notif-list');
 const notifBadge = document.getElementById('notif-badge');
@@ -2112,7 +2349,6 @@ async function cargarNotificaciones() {
 
   try {
     const notifRef = collection(firestore, 'user_notifications', user.uid, 'notifications');
-
     if (unsubNotif) { unsubNotif(); unsubNotif = null; }
 
     unsubNotif = onSnapshot(notifRef, (snapshot) => {
@@ -2190,15 +2426,26 @@ function renderNotificaciones() {
       </div>`;
   }).join('');
 
-  notifList.querySelectorAll('.notif-item').forEach(el => {
-    el.addEventListener('click', async () => {
-      const id = el.dataset.id;
-      const notif = notificaciones.find(n => n.id === id);
-      if (notif && !(notif.leida || notif.read)) {
-        await marcarNotificacionLeida(id);
+notifList.querySelectorAll('.notif-item').forEach(el => {
+  el.addEventListener('click', async () => {
+    const id = el.dataset.id;
+    const notif = notificaciones.find(n => n.id === id);
+    if (!notif) return;
+
+    // Marcar como leída
+    if (!(notif.leida || notif.read)) {
+      await marcarNotificacionLeida(id);
+    }
+
+    // ✅ Si es notificación de chat, abrir el chat directo con esa persona
+    if (notif.tipo === 'chat' && notif.deUserId) {
+      notifOverlay.classList.add('hidden');
+      if (typeof window.abrirChatConAmigo === 'function') {
+        window.abrirChatConAmigo(notif.deUserId);
       }
-    });
+    }
   });
+});
 }
 
 async function marcarNotificacionLeida(id) {
@@ -2235,5 +2482,34 @@ onAuthStateChanged(auth, (user) => {
     notifBadge.style.display = 'none';
   }
 });
+
+// ============ INICIALIZAR CHAT ============
+try {
+  const { inicializarChat } = require('./chat.js');
+  inicializarChat(auth, db, firestore, ipcRenderer, mostrarNotificacion);
+  // Conectar botón con el chat
+  setTimeout(() => {
+    const btnChat = document.getElementById('top-chat');
+    if (btnChat && window.abrirChatRayito) {
+      btnChat.addEventListener('click', window.abrirChatRayito);
+    }
+  }, 500);
+} catch (e) {
+  console.warn('⚠️ No se pudo cargar el módulo de chat:', e);
+}
+// =========================================
+
+// ============ INICIALIZAR APOYO PAYPAL.ME ============
+try {
+  const { inicializarDonaciones } = require('./donaciones.js');
+  inicializarDonaciones(auth, firestore, ipcRenderer, CONFIG_USUARIO, mostrarNotificacion);
+} catch (e) {
+  console.warn('⚠️ No se pudo cargar el módulo de apoyo:', e);
+}
+
+// ======================================================
+
+
+
 
 console.log('✅ Rayito Plus listo con reproductor HLS + WebView + Mini Player + Auto-Update + Notificaciones');
